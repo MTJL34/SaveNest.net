@@ -1,0 +1,71 @@
+@import url("./layout.css");
+
+:root {
+  --page-bg: var(--sn-bg);
+  --page-ink: var(--sn-text);
+  --panel-bg: var(--sn-surface-soft);
+  --panel-line: var(--sn-line);
+  --panel-shadow: var(--sn-shadow-card);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.page {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  font-family: "Poppins", sans-serif;
+  background-color: var(--page-bg);
+  color: var(--page-ink);
+}
+
+.banner {
+  background-color: var(--sn-surface);
+  color: var(--sn-text-soft);
+  text-align: center;
+  padding: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--sn-line);
+}
+
+.page-main {
+  width: min(var(--sn-page-max), 92%);
+  margin: 1.8rem auto 2.2rem;
+}
+
+.content-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--sn-radius-xl);
+  padding: clamp(1.1rem, 2vw, 1.7rem);
+  box-shadow: var(--panel-shadow);
+}
+
+.content-card h1 {
+  margin: 0;
+  color: var(--sn-brand);
+  font-size: var(--sn-title-xl);
+}
+
+.content-card p,
+.content-card li {
+  line-height: 1.7;
+  color: var(--sn-text-soft);
+}
+
+.content-card ul {
+  padding-left: 1.2rem;
+}
+
+.content-card > * + * {
+  margin-top: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .page-main {
+    width: 94%;
+  }
+}

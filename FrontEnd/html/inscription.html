@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/inscription.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <title>Inscription</title>
+  <link rel="icon" type="image/png" href="../img/logo.png" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <header class="header js_header"></header>
+
+  <!-- MAIN SECTION -->
+  <main class="signup">
+    <section class="signup-shell">
+      <aside class="signup-aside">
+        <p class="eyebrow">Créer un compte</p>
+        <h1>Bienvenue dans SaveNest</h1>
+        <p>
+          Rejoignez SaveNest pour ranger vos liens, organiser vos catégories et
+          retrouver rapidement ce qui compte pour vous.
+        </p>
+        <ul class="signup-points">
+          <li>Un espace clair pour vos contenus utiles</li>
+          <li>Catégories publiques ou privées selon vos besoins</li>
+          <li>Gestion simple, même sans profil technique</li>
+        </ul>
+      </aside>
+
+      <section class="signup-card">
+        <h2>Inscription</h2>
+        <p class="subtitle">Créez votre compte en quelques étapes.</p>
+
+        <form class="signup-form">
+          <label for="signupPseudo">Pseudo</label>
+          <input id="signupPseudo" type="text" placeholder="Votre pseudo" required>
+
+          <label for="signupEmail">E-mail</label>
+          <input id="signupEmail" type="email" placeholder="Votre e-mail" required>
+
+          <label for="signupPassword">Mot de passe</label>
+          <input id="signupPassword" type="password" placeholder="Choisissez un mot de passe" required>
+
+          <label for="signupPasswordConfirm">Confirmer le mot de passe</label>
+          <input id="signupPasswordConfirm" type="password" placeholder="Confirmez votre mot de passe" required>
+
+          <p class="form-info">Tous les champs sont obligatoires.</p>
+
+          <button type="submit" class="signup-btn">Créer mon compte</button>
+
+          <div class="social-signup">
+            <button type="button" class="meta">
+              <i class="fa-brands fa-facebook"></i> Continuer avec Meta
+            </button>
+            <button type="button" class="google">
+              <i class="fa-brands fa-google"></i> Continuer avec Google
+            </button>
+            <button type="button" class="twitter">
+              <i class="fa-brands fa-x-twitter"></i> Continuer avec Twitter
+            </button>
+          </div>
+
+          <p class="signin-link">
+            Déjà inscrit ? <a href="../html/connexion.html">Connectez-vous</a>
+          </p>
+        </form>
+      </section>
+    </section>
+  </main>
+
+<!-- FOOTER -->
+  <footer class="footer js_footer"></footer>
+
+  <script type="module">
+    import { setHeader, setFooter } from "../scripts/layout.js";
+    setHeader();
+    setFooter();
+
+    const signupForm = document.querySelector(".signup-form");
+    if (signupForm) {
+      signupForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+      });
+    }
+  </script>
+
+</body>
+</html>

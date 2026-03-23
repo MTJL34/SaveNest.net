@@ -1,0 +1,44 @@
+@import url("./contentPage.css");
+
+.page-main {
+  width: min(1100px, 96%);
+  margin: 0 auto;
+  min-height: calc(100vh - 220px);
+  display: grid;
+  align-items: center;
+}
+
+.content-card {
+  width: 100%;
+  padding: clamp(2rem, 4vw, 3.2rem);
+  min-height: 56vh;
+  display: grid;
+  align-content: start;
+}
+
+.content-card h1 {
+  font-size: calc(var(--sn-title-xl) + 1rem);
+  text-align: center;
+  margin-bottom: 1.2rem;
+}
+
+.content-card p {
+  font-size: 1.38rem;
+  line-height: 1.85;
+}
+
+@media (max-width: 720px) {
+  .page-main {
+    min-height: auto;
+    margin: 1.2rem auto 1.8rem;
+  }
+
+  .content-card {
+    min-height: auto;
+    padding: 1.5rem;
+  }
+
+  .content-card p {
+    font-size: 1.16rem;
+  }
+}

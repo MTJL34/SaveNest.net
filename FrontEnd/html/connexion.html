@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaveNest - Connexion</title>
+  <link rel="icon" type="image/png" href="../img/logo.png" />
+  <link rel="stylesheet" href="../css/connexion.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="header js_header"></header>
+
+  <!-- Connexion -->
+  <main class="login">
+    <section class="login-shell">
+      <aside class="login-aside">
+        <p class="eyebrow">Espace personnel</p>
+        <h1>Heureux de vous revoir</h1>
+        <p>
+          Connectez-vous pour retrouver vos catégories, vos favoris et continuer
+          l’organisation de votre nid numérique.
+        </p>
+        <ul class="login-points">
+          <li>Accès rapide à vos liens enregistrés</li>
+          <li>Organisation simple par catégorie</li>
+          <li>Gestion sécurisée de vos espaces privés</li>
+        </ul>
+      </aside>
+
+      <section class="login-card">
+        <h2>Connexion</h2>
+        <p class="subtitle">Entrez vos informations pour accéder à votre compte.</p>
+
+        <form class="login-form">
+          <label for="pseudo">Pseudo</label>
+          <input id="pseudo" type="text" placeholder="Votre pseudo" required>
+
+          <label for="password">Mot de passe</label>
+          <input id="password" type="password" placeholder="Votre mot de passe" required>
+
+          <div class="options">
+            <label><input type="checkbox"> Se souvenir de moi</label>
+            <a href="#">Mot de passe oublié ?</a>
+          </div>
+
+          <button type="submit" class="login-btn">Se connecter</button>
+
+          <div class="social-login">
+            <button type="button" class="meta">
+              <i class="fa-brands fa-facebook"></i> Continuer avec Meta
+            </button>
+            <button type="button" class="google">
+              <i class="fa-brands fa-google"></i> Continuer avec Google
+            </button>
+            <button type="button" class="twitter">
+              <i class="fa-brands fa-x-twitter"></i> Continuer avec Twitter
+            </button>
+          </div>
+
+          <p class="signup-link">
+            Pas encore de compte ? <a href="../html/inscription.html">Inscrivez-vous</a>
+          </p>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer js_footer"></footer>
+
+  <script type="module">
+    import { setHeader, setFooter } from "../scripts/layout.js";
+    setHeader();
+    setFooter();
+
+    const loginForm = document.querySelector(".login-form");
+    if (loginForm) {
+      loginForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+      });
+    }
+  </script>
+
+</body>
+</html>

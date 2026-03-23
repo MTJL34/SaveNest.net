@@ -1,0 +1,5 @@
+{
+  "watch": ["index.js", "BackEnd"],
+  "ext": "js,mjs,cjs,json",
+  "ignore": ["FrontEnd/**", "node_modules/**", ".git/**", "*.log"]
+}
