@@ -6,19 +6,27 @@ const parsePositiveId = (value) => {
   return id;
 };
 
+const saveSelectQuery = `
+  SELECT
+    s.id_favs,
+    s.id_category,
+    f.title_favs,
+    f.url_favs,
+    f.added_date,
+    f.logo,
+    c.category_name,
+    c.confidentiality,
+    c.id_user,
+    u.pseudo AS user_pseudo
+  FROM save_ s
+  INNER JOIN favs f ON f.id_favs = s.id_favs
+  INNER JOIN category c ON c.id_category = s.id_category
+  INNER JOIN user_ u ON u.id_user = c.id_user
+`;
+
 const getJoinedSaveByFavId = async (idFavs) => {
   const [rows] = await connection.execute(
-    `SELECT
-      s.id_favs,
-      s.id_category,
-      f.title_favs,
-      f.url_favs,
-      f.added_date,
-      f.logo,
-      c.category_name
-    FROM save_ s
-    INNER JOIN favs f ON f.id_favs = s.id_favs
-    INNER JOIN category c ON c.id_category = s.id_category
+    `${saveSelectQuery}
     WHERE s.id_favs = ?`,
     [idFavs]
   );
@@ -29,18 +37,8 @@ const getJoinedSaveByFavId = async (idFavs) => {
 export const getAllSave = async (req, res) => {
   try {
     const [rows] = await connection.execute(
-      `SELECT
-        s.id_favs,
-        s.id_category,
-        f.title_favs,
-        f.url_favs,
-        f.added_date,
-        f.logo,
-        c.category_name
-      FROM save_ s
-      INNER JOIN favs f ON f.id_favs = s.id_favs
-      INNER JOIN category c ON c.id_category = s.id_category
-      ORDER BY s.id_favs ASC`
+      `${saveSelectQuery}
+      ORDER BY s.id_favs ASC, s.id_category ASC`
     );
 
     return res.status(200).json(rows);

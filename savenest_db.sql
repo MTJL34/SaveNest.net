@@ -21,6 +21,7 @@ CREATE TABLE `country` (
 CREATE TABLE `language_` (
   `id_language` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `language_name` VARCHAR(50) NOT NULL,
+  `country_flag` VARCHAR(10) DEFAULT NULL,
   PRIMARY KEY (`id_language`),
   UNIQUE KEY `uk_language_name` (`language_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -122,12 +123,12 @@ INSERT INTO `country` (`id_country`, `country_name`) VALUES
 (4, 'Germany'),
 (5, 'Spain');
 
-INSERT INTO `language_` (`id_language`, `language_name`) VALUES
-(1, 'French'),
-(2, 'English'),
-(3, 'Spanish'),
-(4, 'German'),
-(5, 'Japanese');
+INSERT INTO `language_` (`id_language`, `language_name`, `country_flag`) VALUES
+(1, 'French', '🇫🇷'),
+(2, 'English', '🇬🇧'),
+(3, 'Spanish', '🇪🇸'),
+(4, 'German', '🇩🇪'),
+(5, 'Japanese', '🇯🇵');
 
 INSERT INTO `roles` (`id_roles`, `roles_name`, `right_`) VALUES
 (1, 'ADMIN', 1),

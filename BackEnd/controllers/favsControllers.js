@@ -1,9 +1,34 @@
 import connection from "../config/database.js";
 
+const favSelectQuery = `
+  SELECT
+    f.id_favs,
+    f.title_favs,
+    f.url_favs,
+    f.added_date,
+    f.logo,
+    s.id_category,
+    c.category_name
+  FROM favs f
+  LEFT JOIN save_ s ON s.id_favs = f.id_favs
+  LEFT JOIN category c ON c.id_category = s.id_category
+`;
+
+const getJoinedFavById = async (id) => {
+  const [rows] = await connection.execute(
+    `${favSelectQuery}
+    WHERE f.id_favs = ?`,
+    [id]
+  );
+
+  return rows[0] || null;
+};
+
 export const getAllFavs = async (req, res) => {
   try {
     const [rows] = await connection.execute(
-      "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs ORDER BY id_favs ASC"
+      `${favSelectQuery}
+      ORDER BY f.id_favs ASC`
     );
 
     return res.status(200).json(rows);
@@ -21,16 +46,13 @@ export const getFavById = async (req, res) => {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
-    const [rows] = await connection.execute(
-      "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
-      [id]
-    );
+    const fav = await getJoinedFavById(id);
 
-    if (rows.length === 0) {
+    if (!fav) {
       return res.status(404).json({ message: "Favori introuvable." });
     }
 
-    return res.status(200).json(rows[0]);
+    return res.status(200).json(fav);
   } catch (error) {
     console.error("Error in getFavById:", error);
     return res.status(500).json({ message: "Erreur serveur." });
@@ -53,14 +75,11 @@ export const createFav = async (req, res) => {
       [trimmedTitle, trimmedUrl || null, added_date || null, trimmedLogo || null]
     );
 
-    const [newRows] = await connection.execute(
-      "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
-      [result.insertId]
-    );
+    const newFav = await getJoinedFavById(result.insertId);
 
     return res.status(201).json({
       message: "Favori créé avec succès.",
-      fav: newRows[0],
+      fav: newFav,
     });
   } catch (error) {
     console.error("Error in createFav:", error);
@@ -101,14 +120,11 @@ export const updateFav = async (req, res) => {
       [nextTitle, nextUrl || null, nextDate || null, nextLogo || null, id]
     );
 
-    const [updatedRows] = await connection.execute(
-      "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
-      [id]
-    );
+    const updatedFav = await getJoinedFavById(id);
 
     return res.status(200).json({
       message: "Favori mis à jour avec succès.",
-      fav: updatedRows[0],
+      fav: updatedFav,
     });
   } catch (error) {
     console.error("Error in updateFav:", error);

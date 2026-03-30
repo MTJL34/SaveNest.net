@@ -94,7 +94,7 @@ body {
   font-weight: 600;
 }
 
-.signup-form input {
+.signup-form input:not([type="checkbox"]) {
   border: 1px solid var(--sn-line);
   border-radius: var(--sn-radius-md);
   padding: 0.82rem 0.9rem;
@@ -103,16 +103,92 @@ body {
   font-size: 1rem;
 }
 
-.signup-form input:focus {
+.signup-form input:not([type="checkbox"]):focus {
   outline: none;
   border-color: var(--sn-accent-strong);
   box-shadow: 0 0 0 3px rgba(180, 134, 92, 0.16);
+}
+
+.languages-fieldset {
+  margin-top: 0.35rem;
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  padding: 0.9rem;
+  background: var(--sn-surface-soft);
+}
+
+.languages-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--sn-text);
+}
+
+.languages-help {
+  margin-bottom: 0.75rem;
+  font-size: 0.84rem;
+  color: var(--sn-text-soft);
+}
+
+.languages-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.language-option {
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  padding: 0.72rem 0.8rem;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.language-option:hover {
+  transform: translateY(-1px);
+  border-color: var(--sn-accent-strong);
+}
+
+.language-option:focus-within {
+  border-color: var(--sn-accent-strong);
+  box-shadow: 0 0 0 3px rgba(180, 134, 92, 0.16);
+}
+
+.language-option input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--sn-brand-soft);
+}
+
+.language-option span {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.language-flag {
+  display: inline-block;
+  margin-right: 0.45rem;
+  font-size: 1.05rem;
+  line-height: 1;
+  vertical-align: -0.05em;
 }
 
 .form-info {
   margin-top: 0.25rem;
   font-size: 0.84rem;
   color: var(--sn-text-soft);
+}
+
+.form-feedback {
+  min-height: 1.2rem;
+  margin-top: -0.1rem;
+  font-size: 0.84rem;
+  color: var(--sn-brand);
 }
 
 .signup-btn {
@@ -201,5 +277,11 @@ body {
 
   .signup-card {
     padding: 1.5rem 1.2rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .languages-grid {
+    grid-template-columns: 1fr;
   }
 }

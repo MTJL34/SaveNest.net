@@ -3,86 +3,210 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SaveNest - Connexion</title>
+  <title>SaveNest - Espace utilisateur</title>
   <link rel="icon" type="image/png" href="../img/logo.png" />
   <link rel="stylesheet" href="../css/connexion.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 </head>
 <body>
-
-  <!-- Navbar -->
   <header class="header js_header"></header>
 
-  <!-- Connexion -->
-  <main class="login">
-    <section class="login-shell">
-      <aside class="login-aside">
-        <p class="eyebrow">Espace personnel</p>
-        <h1>Heureux de vous revoir</h1>
-        <p>
+  <main class="auth-page">
+    <section class="auth-shell">
+      <aside class="auth-aside">
+        <p class="eyebrow js_authEyebrow">Espace personnel</p>
+        <h1 class="js_authTitle">Heureux de vous revoir</h1>
+        <p class="js_authDescription">
           Connectez-vous pour retrouver vos catégories, vos favoris et continuer
           l’organisation de votre nid numérique.
         </p>
-        <ul class="login-points">
+        <ul class="auth-points js_authPoints">
           <li>Accès rapide à vos liens enregistrés</li>
           <li>Organisation simple par catégorie</li>
           <li>Gestion sécurisée de vos espaces privés</li>
         </ul>
       </aside>
 
-      <section class="login-card">
-        <h2>Connexion</h2>
-        <p class="subtitle">Entrez vos informations pour accéder à votre compte.</p>
+      <section class="auth-card">
+        <div class="auth-switch" role="tablist" aria-label="Basculer entre connexion et inscription">
+          <button
+            type="button"
+            class="auth-switch-btn is-active"
+            data-auth-target="login"
+            aria-selected="true"
+          >
+            Connexion
+          </button>
+          <button
+            type="button"
+            class="auth-switch-btn"
+            data-auth-target="signup"
+            aria-selected="false"
+          >
+            Inscription
+          </button>
+        </div>
 
-        <form class="login-form">
-          <label for="pseudo">Pseudo</label>
-          <input id="pseudo" type="text" placeholder="Votre pseudo" required>
+        <div class="auth-panels js_authPanels">
+          <section class="auth-panel is-active" data-auth-panel="login" aria-hidden="false">
+            <h2>Connexion</h2>
+            <p class="subtitle">Entrez vos informations pour accéder à votre compte.</p>
 
-          <label for="password">Mot de passe</label>
-          <input id="password" type="password" placeholder="Votre mot de passe" required>
+            <form class="auth-form login-form">
+              <label for="loginPseudo">Pseudo</label>
+              <input id="loginPseudo" type="text" placeholder="Votre pseudo" required>
 
-          <div class="options">
-            <label><input type="checkbox"> Se souvenir de moi</label>
-            <a href="#">Mot de passe oublié ?</a>
-          </div>
+              <label for="loginPassword">Mot de passe</label>
+              <input id="loginPassword" type="password" placeholder="Votre mot de passe" required>
 
-          <button type="submit" class="login-btn">Se connecter</button>
+              <div class="options">
+                <label><input type="checkbox"> Se souvenir de moi</label>
+                <a href="#">Mot de passe oublié ?</a>
+              </div>
 
-          <div class="social-login">
-            <button type="button" class="meta">
-              <i class="fa-brands fa-facebook"></i> Continuer avec Meta
-            </button>
-            <button type="button" class="google">
-              <i class="fa-brands fa-google"></i> Continuer avec Google
-            </button>
-            <button type="button" class="twitter">
-              <i class="fa-brands fa-x-twitter"></i> Continuer avec Twitter
-            </button>
-          </div>
+              <p class="form-feedback login-feedback" aria-live="polite"></p>
 
-          <p class="signup-link">
-            Pas encore de compte ? <a href="../html/inscription.html">Inscrivez-vous</a>
-          </p>
-        </form>
+              <button type="submit" class="auth-submit-btn">Se connecter</button>
+
+              <div class="social-auth">
+                <button type="button" class="meta">
+                  <i class="fa-brands fa-facebook"></i> Continuer avec Meta
+                </button>
+                <button type="button" class="google">
+                  <i class="fa-brands fa-google"></i> Continuer avec Google
+                </button>
+                <button type="button" class="twitter">
+                  <i class="fa-brands fa-x-twitter"></i> Continuer avec Twitter
+                </button>
+              </div>
+
+              <p class="auth-helper">
+                Pas encore de compte ?
+                <button type="button" class="auth-inline-btn" data-auth-target="signup">
+                  Passer à l’inscription
+                </button>
+              </p>
+            </form>
+          </section>
+
+          <section class="auth-panel" data-auth-panel="signup" aria-hidden="true">
+            <h2>Inscription</h2>
+            <p class="subtitle">Créez votre compte en quelques étapes.</p>
+
+            <form class="auth-form signup-form">
+              <label for="signupPseudo">Pseudo</label>
+              <input id="signupPseudo" type="text" placeholder="Votre pseudo" required>
+
+              <label for="signupEmail">E-mail</label>
+              <input id="signupEmail" type="email" placeholder="Votre e-mail" required>
+
+              <label for="signupPassword">Mot de passe</label>
+              <input id="signupPassword" type="password" placeholder="Choisissez un mot de passe" required>
+
+              <label for="signupPasswordConfirm">Confirmer le mot de passe</label>
+              <input id="signupPasswordConfirm" type="password" placeholder="Confirmez votre mot de passe" required>
+
+              <fieldset class="languages-fieldset">
+                <legend>Langues parlées</legend>
+                <p class="languages-help">Ouvrez la liste puis cochez les langues souhaitées.</p>
+
+                <div class="languages-select js_languagesSelect">
+                  <button
+                    type="button"
+                    class="languages-trigger js_languagesTrigger is-placeholder"
+                    aria-expanded="false"
+                    aria-controls="languagesDropdown"
+                  >
+                    <span class="languages-trigger-main">
+                      <span class="languages-trigger-text js_languagesTriggerText">
+                        Choisir vos langues
+                      </span>
+                      <span class="languages-trigger-hint">Sélection multiple</span>
+                    </span>
+                    <span class="languages-trigger-meta">
+                      <span class="languages-count js_languagesCount" hidden>0</span>
+                      <span class="languages-trigger-icon" aria-hidden="true">▾</span>
+                    </span>
+                  </button>
+
+                  <div id="languagesDropdown" class="languages-dropdown js_languagesDropdown">
+                    <div class="languages-options">
+                      <label class="language-option" for="languageFrench">
+                        <span class="language-option-main">
+                          <input id="languageFrench" type="checkbox" name="spoken_languages" value="French">
+                          <span><span class="language-flag" aria-hidden="true">🇫🇷</span> Français</span>
+                        </span>
+                        <span class="language-checkmark" aria-hidden="true">✓</span>
+                      </label>
+
+                      <label class="language-option" for="languageEnglish">
+                        <span class="language-option-main">
+                          <input id="languageEnglish" type="checkbox" name="spoken_languages" value="English">
+                          <span><span class="language-flag" aria-hidden="true">🇬🇧</span> Anglais</span>
+                        </span>
+                        <span class="language-checkmark" aria-hidden="true">✓</span>
+                      </label>
+
+                      <label class="language-option" for="languageSpanish">
+                        <span class="language-option-main">
+                          <input id="languageSpanish" type="checkbox" name="spoken_languages" value="Spanish">
+                          <span><span class="language-flag" aria-hidden="true">🇪🇸</span> Espagnol</span>
+                        </span>
+                        <span class="language-checkmark" aria-hidden="true">✓</span>
+                      </label>
+
+                      <label class="language-option" for="languageGerman">
+                        <span class="language-option-main">
+                          <input id="languageGerman" type="checkbox" name="spoken_languages" value="German">
+                          <span><span class="language-flag" aria-hidden="true">🇩🇪</span> Allemand</span>
+                        </span>
+                        <span class="language-checkmark" aria-hidden="true">✓</span>
+                      </label>
+
+                      <label class="language-option" for="languageJapanese">
+                        <span class="language-option-main">
+                          <input id="languageJapanese" type="checkbox" name="spoken_languages" value="Japanese">
+                          <span><span class="language-flag" aria-hidden="true">🇯🇵</span> Japonais</span>
+                        </span>
+                        <span class="language-checkmark" aria-hidden="true">✓</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+
+              <p class="form-info">Tous les champs sont obligatoires. Sélectionnez au moins une langue parlée.</p>
+              <p class="form-feedback signup-feedback" aria-live="polite"></p>
+
+              <button type="submit" class="auth-submit-btn">Créer mon compte</button>
+
+              <div class="social-auth">
+                <button type="button" class="meta">
+                  <i class="fa-brands fa-facebook"></i> Continuer avec Meta
+                </button>
+                <button type="button" class="google">
+                  <i class="fa-brands fa-google"></i> Continuer avec Google
+                </button>
+                <button type="button" class="twitter">
+                  <i class="fa-brands fa-x-twitter"></i> Continuer avec Twitter
+                </button>
+              </div>
+
+              <p class="auth-helper">
+                Déjà inscrit ?
+                <button type="button" class="auth-inline-btn" data-auth-target="login">
+                  Passer à la connexion
+                </button>
+              </p>
+            </form>
+          </section>
+        </div>
       </section>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer js_footer"></footer>
 
-  <script type="module">
-    import { setHeader, setFooter } from "../scripts/layout.js";
-    setHeader();
-    setFooter();
-
-    const loginForm = document.querySelector(".login-form");
-    if (loginForm) {
-      loginForm.addEventListener("submit", (event) => {
-        event.preventDefault();
-      });
-    }
-  </script>
-
+  <script type="module" src="../scripts/authPage.js"></script>
 </body>
 </html>

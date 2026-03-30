@@ -57,6 +57,7 @@ body.layout-ready {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
   background-color: var(--sn-brand);
   padding: 0.8rem 2rem;
   color: var(--sn-surface);
@@ -75,6 +76,23 @@ body.layout-ready {
 .navbar .logo img {
   width: 40px;
   height: 40px;
+}
+
+.header-main,
+.navbar-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.header-nav,
+.navbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
 }
 
 .header ul,
@@ -96,6 +114,49 @@ body.layout-ready {
   text-decoration: underline;
 }
 
+.header-language {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.header-language-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(247, 237, 226, 0.88);
+}
+
+.header-language-select,
+.header-language-badge {
+  min-height: 38px;
+  border: 1px solid rgba(247, 237, 226, 0.28);
+  border-radius: var(--sn-radius-pill);
+  background: rgba(247, 237, 226, 0.12);
+  color: var(--sn-surface);
+  font-size: 0.92rem;
+}
+
+.header-language-select {
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+}
+
+.header-language-select:focus {
+  outline: none;
+  border-color: rgba(247, 237, 226, 0.72);
+}
+
+.header-language-select option {
+  color: var(--sn-text);
+  background: var(--sn-surface);
+}
+
+.header-language-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+}
+
 .footer,
 footer {
   background-color: var(--sn-brand);
@@ -103,6 +164,7 @@ footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
   padding: 1rem 2rem;
 }
 
@@ -126,6 +188,12 @@ footer .footer-links ul {
   gap: 1.5rem;
 }
 
+.footer-links {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .footer a,
 footer a {
   text-decoration: none;
@@ -143,6 +211,7 @@ footer a:hover {
   .footer,
   footer {
     padding: 0.8rem 1rem;
+    flex-wrap: wrap;
   }
 
   .header ul,
@@ -151,6 +220,32 @@ footer a:hover {
   footer .footer-links ul {
     gap: 0.9rem;
     flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .footer-links {
+    position: static;
+    transform: none;
+    width: 100%;
+  }
+
+  .header-main,
+  .navbar-main {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .header-nav,
+  .navbar-nav {
+    width: 100%;
+    margin-left: 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .header-language {
+    width: 100%;
     justify-content: center;
   }
 }
