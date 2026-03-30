@@ -1,9 +1,14 @@
 import connection from "../config/database.js";
+import { isPrivilegedUser } from "../middlewares/auth.js";
 
 const parsePositiveId = (value) => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) return null;
   return id;
+};
+
+const canAccessUserOwnedResource = (req, ownerId) => {
+  return isPrivilegedUser(req.authUser) || req.authUser?.id_user === ownerId;
 };
 
 const saveSelectQuery = `
@@ -36,10 +41,15 @@ const getJoinedSaveByFavId = async (idFavs) => {
 
 export const getAllSave = async (req, res) => {
   try {
-    const [rows] = await connection.execute(
-      `${saveSelectQuery}
+    const isPrivileged = isPrivilegedUser(req.authUser);
+    const query = isPrivileged
+      ? `${saveSelectQuery}
       ORDER BY s.id_favs ASC, s.id_category ASC`
-    );
+      : `${saveSelectQuery}
+      WHERE c.id_user = ?
+      ORDER BY s.id_favs ASC, s.id_category ASC`;
+    const values = isPrivileged ? [] : [req.authUser.id_user];
+    const [rows] = await connection.execute(query, values);
 
     return res.status(200).json(rows);
   } catch (error) {
@@ -60,6 +70,10 @@ export const getSaveByFavId = async (req, res) => {
 
     if (!saveRow) {
       return res.status(404).json({ message: "Attribution introuvable." });
+    }
+
+    if (!canAccessUserOwnedResource(req, saveRow.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
     }
 
     return res.status(200).json(saveRow);
@@ -89,11 +103,16 @@ export const createSave = async (req, res) => {
     }
 
     const [categoryRows] = await connection.execute(
-      "SELECT id_category FROM category WHERE id_category = ?",
+      "SELECT id_category, id_user FROM category WHERE id_category = ?",
       [idCategory]
     );
     if (categoryRows.length === 0) {
       return res.status(404).json({ message: "Catégorie introuvable." });
+    }
+
+    const targetCategory = categoryRows[0];
+    if (!canAccessUserOwnedResource(req, targetCategory.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
     }
 
     const [existingRows] = await connection.execute(
@@ -139,19 +158,30 @@ export const updateSave = async (req, res) => {
     }
 
     const [existingRows] = await connection.execute(
-      "SELECT id_favs, id_category FROM save_ WHERE id_favs = ?",
+      `${saveSelectQuery}
+      WHERE s.id_favs = ?`,
       [idFavs]
     );
     if (existingRows.length === 0) {
       return res.status(404).json({ message: "Attribution introuvable." });
     }
 
+    const currentSave = existingRows[0];
+    if (!canAccessUserOwnedResource(req, currentSave.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
     const [categoryRows] = await connection.execute(
-      "SELECT id_category FROM category WHERE id_category = ?",
+      "SELECT id_category, id_user FROM category WHERE id_category = ?",
       [idCategory]
     );
     if (categoryRows.length === 0) {
       return res.status(404).json({ message: "Catégorie introuvable." });
+    }
+
+    const nextCategory = categoryRows[0];
+    if (!canAccessUserOwnedResource(req, nextCategory.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
     }
 
     await connection.execute(
@@ -179,14 +209,20 @@ export const deleteSave = async (req, res) => {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
+    const saveRow = await getJoinedSaveByFavId(idFavs);
+
+    if (!saveRow) {
+      return res.status(404).json({ message: "Attribution introuvable." });
+    }
+
+    if (!canAccessUserOwnedResource(req, saveRow.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
     const [result] = await connection.execute(
       "DELETE FROM save_ WHERE id_favs = ?",
       [idFavs]
     );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Attribution introuvable." });
-    }
 
     return res.status(200).json({ message: "Attribution supprimée avec succès." });
   } catch (error) {

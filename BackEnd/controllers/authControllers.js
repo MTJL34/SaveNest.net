@@ -1,12 +1,20 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import connection from "../config/database.js";
+import { ROLE_CODES } from "../middlewares/auth.js";
+
+const DEFAULT_ROLE_ID = 2;
 
 const parsePositiveId = (value) => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) return null;
   return id;
 };
+
+const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
+
+const normalizeMail = (value) => normalizeText(value).toLowerCase();
+const isAdminUser = (user) => user?.role_code === ROLE_CODES.ADMIN;
 
 const userSelectQuery = `
   SELECT
@@ -15,15 +23,12 @@ const userSelectQuery = `
     u.mail,
     u.id_savenest,
     s.date_inscription,
-    u.id_country,
-    c.country_name,
-    u.id_roles,
-    r.roles_name,
-    r.right_
+    u.id_role,
+    r.role_code,
+    r.role_label
   FROM user_ u
   INNER JOIN savenest s ON s.id_savenest = u.id_savenest
-  INNER JOIN country c ON c.id_country = u.id_country
-  INNER JOIN roles r ON r.id_roles = u.id_roles
+  INNER JOIN roles r ON r.id_role = u.id_role
 `;
 
 const sanitizeUser = (user) => ({
@@ -32,11 +37,9 @@ const sanitizeUser = (user) => ({
   mail: user.mail,
   id_savenest: user.id_savenest,
   date_inscription: user.date_inscription,
-  id_country: user.id_country,
-  country_name: user.country_name,
-  id_roles: user.id_roles,
-  roles_name: user.roles_name,
-  right_: user.right_,
+  id_role: user.id_role,
+  role_code: user.role_code,
+  role_label: user.role_label,
 });
 
 const getSpokenLanguagesByUserId = async (idUser) => {
@@ -44,7 +47,7 @@ const getSpokenLanguagesByUserId = async (idUser) => {
     `SELECT
       l.id_language,
       l.language_name,
-      l.country_flag
+      l.language_icon
     FROM speaking sp
     INNER JOIN language_ l ON l.id_language = sp.id_language
     WHERE sp.id_user = ?
@@ -80,26 +83,21 @@ const getJoinedUserById = async (idUser) => {
 
 const getRawUserById = async (idUser) => {
   const [rows] = await connection.execute(
-    "SELECT id_user, pseudo, mail, password, id_savenest, id_country, id_roles FROM user_ WHERE id_user = ?",
+    "SELECT id_user, pseudo, mail, password, id_savenest, id_role FROM user_ WHERE id_user = ?",
     [idUser]
   );
 
   return rows[0] || null;
 };
 
-const ensureForeignKeysExist = async ({ id_savenest, id_country, id_roles }) => {
-  const [[saveNestRows], [countryRows], [roleRows]] = await Promise.all([
+const ensureForeignKeysExist = async ({ id_savenest, id_role }) => {
+  const [[saveNestRows], [roleRows]] = await Promise.all([
     connection.execute("SELECT id_savenest FROM savenest WHERE id_savenest = ? LIMIT 1", [id_savenest]),
-    connection.execute("SELECT id_country FROM country WHERE id_country = ? LIMIT 1", [id_country]),
-    connection.execute("SELECT id_roles FROM roles WHERE id_roles = ? LIMIT 1", [id_roles]),
+    connection.execute("SELECT id_role FROM roles WHERE id_role = ? LIMIT 1", [id_role]),
   ]);
 
   if (saveNestRows.length === 0) {
     return { message: "SaveNest introuvable." };
-  }
-
-  if (countryRows.length === 0) {
-    return { message: "Pays introuvable." };
   }
 
   if (roleRows.length === 0) {
@@ -165,13 +163,12 @@ export const getUserById = async (req, res) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { pseudo, mail, password, id_savenest, id_country, id_roles = 2 } = req.body;
-    const trimmedPseudo = typeof pseudo === "string" ? pseudo.trim() : "";
-    const trimmedMail = typeof mail === "string" ? mail.trim().toLowerCase() : "";
+    const { pseudo, mail, password, id_savenest } = req.body;
+    const trimmedPseudo = normalizeText(pseudo);
+    const trimmedMail = normalizeMail(mail);
     const rawPassword = typeof password === "string" ? password : "";
     const parsedSaveNest = parsePositiveId(id_savenest);
-    const parsedCountry = parsePositiveId(id_country);
-    const parsedRole = parsePositiveId(id_roles);
+    const parsedRole = DEFAULT_ROLE_ID;
 
     if (!trimmedPseudo || !trimmedMail || !rawPassword) {
       return res.status(400).json({ message: "pseudo, mail et password sont obligatoires." });
@@ -181,18 +178,9 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "id_savenest doit être un entier valide." });
     }
 
-    if (!parsedCountry) {
-      return res.status(400).json({ message: "id_country doit être un entier valide." });
-    }
-
-    if (!parsedRole) {
-      return res.status(400).json({ message: "id_roles doit être un entier valide." });
-    }
-
     const foreignKeyError = await ensureForeignKeysExist({
       id_savenest: parsedSaveNest,
-      id_country: parsedCountry,
-      id_roles: parsedRole,
+      id_role: parsedRole,
     });
 
     if (foreignKeyError) {
@@ -215,8 +203,8 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     const [result] = await connection.execute(
-      "INSERT INTO user_ (pseudo, mail, password, id_savenest, id_country, id_roles) VALUES (?, ?, ?, ?, ?, ?)",
-      [trimmedPseudo, trimmedMail, hashedPassword, parsedSaveNest, parsedCountry, parsedRole]
+      "INSERT INTO user_ (pseudo, mail, password, id_savenest, id_role) VALUES (?, ?, ?, ?, ?)",
+      [trimmedPseudo, trimmedMail, hashedPassword, parsedSaveNest, parsedRole]
     );
 
     const createdUser = await getJoinedUserById(result.insertId);
@@ -247,23 +235,17 @@ export const updateUser = async (req, res) => {
     }
 
     const nextPseudo =
-      req.body.pseudo === undefined ? existingUser.pseudo : String(req.body.pseudo).trim();
+      req.body.pseudo === undefined ? existingUser.pseudo : normalizeText(req.body.pseudo);
     const nextMail =
-      req.body.mail === undefined ? existingUser.mail : String(req.body.mail).trim().toLowerCase();
+      req.body.mail === undefined ? existingUser.mail : normalizeMail(req.body.mail);
     const nextPasswordRaw =
       req.body.password === undefined ? null : String(req.body.password);
     const nextSaveNest =
       req.body.id_savenest === undefined
         ? existingUser.id_savenest
         : parsePositiveId(req.body.id_savenest);
-    const nextCountry =
-      req.body.id_country === undefined
-        ? existingUser.id_country
-        : parsePositiveId(req.body.id_country);
     const nextRole =
-      req.body.id_roles === undefined
-        ? existingUser.id_roles
-        : parsePositiveId(req.body.id_roles);
+      req.body.id_role === undefined ? existingUser.id_role : parsePositiveId(req.body.id_role);
 
     if (!nextPseudo || !nextMail) {
       return res.status(400).json({ message: "pseudo et mail ne peuvent pas être vides." });
@@ -273,12 +255,14 @@ export const updateUser = async (req, res) => {
       return res.status(400).json({ message: "id_savenest doit être un entier valide." });
     }
 
-    if (!nextCountry) {
-      return res.status(400).json({ message: "id_country doit être un entier valide." });
+    if (!nextRole) {
+      return res.status(400).json({ message: "id_role doit être un entier valide." });
     }
 
-    if (!nextRole) {
-      return res.status(400).json({ message: "id_roles doit être un entier valide." });
+    if (!isAdminUser(req.authUser) && nextRole !== existingUser.id_role) {
+      return res.status(403).json({
+        message: "Seul un administrateur peut modifier le rôle d'un utilisateur.",
+      });
     }
 
     if (nextPasswordRaw !== null && nextPasswordRaw.trim() === "") {
@@ -287,8 +271,7 @@ export const updateUser = async (req, res) => {
 
     const foreignKeyError = await ensureForeignKeysExist({
       id_savenest: nextSaveNest,
-      id_country: nextCountry,
-      id_roles: nextRole,
+      id_role: nextRole,
     });
 
     if (foreignKeyError) {
@@ -313,8 +296,8 @@ export const updateUser = async (req, res) => {
       nextPasswordRaw === null ? existingUser.password : await bcrypt.hash(nextPasswordRaw, 10);
 
     await connection.execute(
-      "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_country = ?, id_roles = ? WHERE id_user = ?",
-      [nextPseudo, nextMail, nextPassword, nextSaveNest, nextCountry, nextRole, idUser]
+      "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_role = ? WHERE id_user = ?",
+      [nextPseudo, nextMail, nextPassword, nextSaveNest, nextRole, idUser]
     );
 
     const updatedUser = await getJoinedUserById(idUser);
@@ -354,7 +337,7 @@ export const deleteUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { mail, password } = req.body;
-    const trimmedMail = typeof mail === "string" ? mail.trim().toLowerCase() : "";
+    const trimmedMail = normalizeMail(mail);
     const rawPassword = typeof password === "string" ? password : "";
 
     if (!trimmedMail || !rawPassword) {
@@ -362,7 +345,7 @@ export const loginUser = async (req, res) => {
     }
 
     const [rows] = await connection.execute(
-      "SELECT id_user, pseudo, mail, password, id_savenest, id_country, id_roles FROM user_ WHERE mail = ? LIMIT 1",
+      "SELECT id_user, pseudo, mail, password, id_savenest, id_role FROM user_ WHERE mail = ? LIMIT 1",
       [trimmedMail]
     );
 
@@ -377,14 +360,18 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Identifiants invalides." });
     }
 
+    const fullUser = await getJoinedUserById(user.id_user);
     const secret = process.env.JWT_SECRET || "dev_secret_change_me";
     const token = jwt.sign(
-      { id_user: user.id_user, mail: user.mail, id_roles: user.id_roles },
+      {
+        id_user: fullUser.id_user,
+        mail: fullUser.mail,
+        id_role: fullUser.id_role,
+        role_code: fullUser.role_code,
+      },
       secret,
       { expiresIn: "24h" }
     );
-
-    const fullUser = await getJoinedUserById(user.id_user);
     const publicUser = await buildPublicUser(fullUser);
 
     return res.status(200).json({

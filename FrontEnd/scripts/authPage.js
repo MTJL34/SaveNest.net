@@ -101,7 +101,8 @@ const getSelectedLanguages = () => {
 
 const getSelectedLanguageLabels = () => {
   return getSelectedLanguageInputs().map((input) => {
-    return input.parentElement?.textContent?.replace(/\s+/g, " ").trim() || input.value;
+    const languageLabel = input.closest(".language-option")?.querySelector(".language-label");
+    return languageLabel?.textContent?.trim() || input.value;
   });
 };
 

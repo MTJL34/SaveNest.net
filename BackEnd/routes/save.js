@@ -8,6 +8,9 @@ import {
   updateSave,
   deleteSave,
 } from "../controllers/saveControllers.js";
+import { requireAuth } from "../middlewares/auth.js";
+
+router.use(requireAuth);
 
 // Route pour obtenir toutes les attributions favori/catégorie
 router.get("/", getAllSave);

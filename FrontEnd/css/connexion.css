@@ -406,12 +406,22 @@ body {
   transform: scale(1);
 }
 
-.language-flag {
-  display: inline-block;
-  margin-right: 0.45rem;
-  font-size: 1.05rem;
-  line-height: 1;
-  vertical-align: -0.05em;
+.language-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.language-badge {
+  min-width: 2rem;
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(139, 90, 54, 0.12);
+  color: var(--sn-brand);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .form-info {

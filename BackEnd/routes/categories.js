@@ -4,6 +4,9 @@ const router = express.Router();
 // Import the categoriesControllers
 
 import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory } from '../controllers/categoriesControllers.js';
+import { requireAuth } from "../middlewares/auth.js";
+
+router.use(requireAuth);
 
 // Route pour obtenir toutes les catégories
 router.get('/', getAllCategories);

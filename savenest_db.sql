@@ -11,27 +11,21 @@ USE `savenest_db`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
-CREATE TABLE `country` (
-  `id_country` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `country_name` VARCHAR(50) NOT NULL,
-  PRIMARY KEY (`id_country`),
-  UNIQUE KEY `uk_country_name` (`country_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE `language_` (
   `id_language` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `language_name` VARCHAR(50) NOT NULL,
-  `country_flag` VARCHAR(10) DEFAULT NULL,
+  `language_icon` VARCHAR(10) DEFAULT NULL,
   PRIMARY KEY (`id_language`),
   UNIQUE KEY `uk_language_name` (`language_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `roles` (
-  `id_roles` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `roles_name` VARCHAR(50) NOT NULL,
-  `right_` TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_roles`),
-  UNIQUE KEY `uk_roles_name` (`roles_name`)
+  `id_role` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `role_code` VARCHAR(50) NOT NULL,
+  `role_label` VARCHAR(50) NOT NULL,
+  PRIMARY KEY (`id_role`),
+  UNIQUE KEY `uk_role_code` (`role_code`),
+  UNIQUE KEY `uk_role_label` (`role_label`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `savenest` (
@@ -57,22 +51,17 @@ CREATE TABLE `user_` (
   `mail` VARCHAR(150) NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `id_savenest` INT UNSIGNED NOT NULL,
-  `id_country` INT UNSIGNED NOT NULL,
-  `id_roles` INT UNSIGNED NOT NULL,
+  `id_role` INT UNSIGNED NOT NULL,
   PRIMARY KEY (`id_user`),
   UNIQUE KEY `uk_user_pseudo` (`pseudo`),
   UNIQUE KEY `uk_user_mail` (`mail`),
   KEY `idx_user_savenest` (`id_savenest`),
-  KEY `idx_user_country` (`id_country`),
-  KEY `idx_user_roles` (`id_roles`),
+  KEY `idx_user_role` (`id_role`),
   CONSTRAINT `fk_user_savenest`
     FOREIGN KEY (`id_savenest`) REFERENCES `savenest` (`id_savenest`)
     ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_user_country`
-    FOREIGN KEY (`id_country`) REFERENCES `country` (`id_country`)
-    ON UPDATE CASCADE,
-  CONSTRAINT `fk_user_roles`
-    FOREIGN KEY (`id_roles`) REFERENCES `roles` (`id_roles`)
+  CONSTRAINT `fk_user_role`
+    FOREIGN KEY (`id_role`) REFERENCES `roles` (`id_role`)
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -116,34 +105,27 @@ CREATE TABLE `save_` (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `country` (`id_country`, `country_name`) VALUES
-(1, 'France'),
-(2, 'Belgium'),
-(3, 'Canada'),
-(4, 'Germany'),
-(5, 'Spain');
+INSERT INTO `language_` (`id_language`, `language_name`, `language_icon`) VALUES
+(1, 'French', 'FR'),
+(2, 'English', 'EN'),
+(3, 'Spanish', 'ES'),
+(4, 'German', 'DE'),
+(5, 'Japanese', 'JA');
 
-INSERT INTO `language_` (`id_language`, `language_name`, `country_flag`) VALUES
-(1, 'French', '🇫🇷'),
-(2, 'English', '🇬🇧'),
-(3, 'Spanish', '🇪🇸'),
-(4, 'German', '🇩🇪'),
-(5, 'Japanese', '🇯🇵');
-
-INSERT INTO `roles` (`id_roles`, `roles_name`, `right_`) VALUES
-(1, 'ADMIN', 1),
-(2, 'USER', 0),
-(3, 'MODERATOR', 1);
+INSERT INTO `roles` (`id_role`, `role_code`, `role_label`) VALUES
+(1, 'ADMIN', 'Administrateur'),
+(2, 'USER', 'Utilisateur'),
+(3, 'MODERATOR', 'Modérateur');
 
 INSERT INTO `savenest` (`id_savenest`, `date_inscription`) VALUES
 (1, '2026-02-20 14:08:47'),
 (2, '2026-02-20 14:08:47'),
 (3, '2026-02-20 14:08:47');
 
-INSERT INTO `user_` (`id_user`, `pseudo`, `mail`, `password`, `id_savenest`, `id_country`, `id_roles`) VALUES
-(1, 'Neo', 'neo@savenest.test', '$2b$10$FAKEHASHneo', 1, 1, 2),
-(2, 'Trinity', 'trinity@savenest.test', '$2b$10$FAKEHASHtrinity', 2, 3, 2),
-(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$FAKEHASHmorpheus', 3, 2, 1);
+INSERT INTO `user_` (`id_user`, `pseudo`, `mail`, `password`, `id_savenest`, `id_role`) VALUES
+(1, 'Neo', 'neo@savenest.test', '$2b$10$FAKEHASHneo', 1, 2),
+(2, 'Trinity', 'trinity@savenest.test', '$2b$10$FAKEHASHtrinity', 2, 2),
+(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$FAKEHASHmorpheus', 3, 1);
 
 INSERT INTO `category` (`id_category`, `category_name`, `confidentiality`, `password`, `id_user`) VALUES
 (1, 'Streaming', 0, NULL, 1),
@@ -214,7 +196,6 @@ INSERT INTO `save_` (`id_category`, `id_favs`) VALUES
 (3, 23),
 (3, 24);
 
-ALTER TABLE `country` AUTO_INCREMENT = 6;
 ALTER TABLE `language_` AUTO_INCREMENT = 6;
 ALTER TABLE `roles` AUTO_INCREMENT = 4;
 ALTER TABLE `savenest` AUTO_INCREMENT = 4;

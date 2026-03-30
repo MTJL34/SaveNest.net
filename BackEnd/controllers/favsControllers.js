@@ -1,4 +1,5 @@
 import connection from "../config/database.js";
+import { isPrivilegedUser } from "../middlewares/auth.js";
 
 const favSelectQuery = `
   SELECT
@@ -14,11 +15,26 @@ const favSelectQuery = `
   LEFT JOIN category c ON c.id_category = s.id_category
 `;
 
-const getJoinedFavById = async (id) => {
+const getRawFavById = async (id) => {
   const [rows] = await connection.execute(
-    `${favSelectQuery}
-    WHERE f.id_favs = ?`,
+    "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
     [id]
+  );
+
+  return rows[0] || null;
+};
+
+const getJoinedFavById = async (id, authUser) => {
+  const isPrivileged = isPrivilegedUser(authUser);
+  const query = isPrivileged
+    ? `${favSelectQuery}
+    WHERE f.id_favs = ?`
+    : `${favSelectQuery}
+    WHERE f.id_favs = ? AND c.id_user = ?`;
+  const values = isPrivileged ? [id] : [id, authUser.id_user];
+  const [rows] = await connection.execute(
+    query,
+    values
   );
 
   return rows[0] || null;
@@ -26,9 +42,17 @@ const getJoinedFavById = async (id) => {
 
 export const getAllFavs = async (req, res) => {
   try {
-    const [rows] = await connection.execute(
-      `${favSelectQuery}
+    const isPrivileged = isPrivilegedUser(req.authUser);
+    const query = isPrivileged
+      ? `${favSelectQuery}
       ORDER BY f.id_favs ASC`
+      : `${favSelectQuery}
+      WHERE c.id_user = ?
+      ORDER BY f.id_favs ASC`;
+    const values = isPrivileged ? [] : [req.authUser.id_user];
+    const [rows] = await connection.execute(
+      query,
+      values
     );
 
     return res.status(200).json(rows);
@@ -46,7 +70,7 @@ export const getFavById = async (req, res) => {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
-    const fav = await getJoinedFavById(id);
+    const fav = await getJoinedFavById(id, req.authUser);
 
     if (!fav) {
       return res.status(404).json({ message: "Favori introuvable." });
@@ -75,7 +99,9 @@ export const createFav = async (req, res) => {
       [trimmedTitle, trimmedUrl || null, added_date || null, trimmedLogo || null]
     );
 
-    const newFav = await getJoinedFavById(result.insertId);
+    const newFav =
+      (await getJoinedFavById(result.insertId, req.authUser)) ||
+      (await getRawFavById(result.insertId));
 
     return res.status(201).json({
       message: "Favori créé avec succès.",
@@ -120,7 +146,7 @@ export const updateFav = async (req, res) => {
       [nextTitle, nextUrl || null, nextDate || null, nextLogo || null, id]
     );
 
-    const updatedFav = await getJoinedFavById(id);
+    const updatedFav = await getJoinedFavById(id, req.authUser);
 
     return res.status(200).json({
       message: "Favori mis à jour avec succès.",
