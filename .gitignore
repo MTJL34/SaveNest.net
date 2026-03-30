@@ -1,3 +1,5 @@
 node_modules/
 .env
 txt
+.DS_Store
+savenest_db.sql 
