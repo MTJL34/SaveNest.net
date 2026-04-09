@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import categoriesRoutes from "./BackEnd/routes/categories.js";
 import authRoutes from "./BackEnd/routes/auth.js";
 import favsRoutes from "./BackEnd/routes/favs.js";
-import saveRoutes from "./BackEnd/routes/save.js";
 
 const app = express();
 dotenv.config();
@@ -19,7 +18,6 @@ app.get('/', (req, res) => {
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/favs", favsRoutes);
-app.use("/api/save", saveRoutes);
 
 
 const PORT = process.env.PORT || 3000;

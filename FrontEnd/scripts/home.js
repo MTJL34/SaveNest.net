@@ -1,16 +1,16 @@
 import { setHeader, setFooter } from "../scripts/layout.js";
-import { category } from "../data/category.js";
+import { category as categories } from "../data/category.js";
 import { favs } from "../data/favs.js";
 
 setHeader();
 setFooter();
 
-const STORAGE_KEY = "savenest_unlocked_categories";
-const contentEl = document.querySelector(".js_content");
+const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
+const cardsContainerEl = document.querySelector(".js_content");
 
 function loadUnlockedCategories() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
@@ -23,7 +23,10 @@ function loadUnlockedCategories() {
 let unlockedCategoryIds = loadUnlockedCategories();
 
 function persistUnlockedCategories() {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...unlockedCategoryIds]));
+  sessionStorage.setItem(
+    UNLOCKED_CATEGORIES_STORAGE_KEY,
+    JSON.stringify([...unlockedCategoryIds])
+  );
 }
 
 function getCategoryPrivacy(item) {
@@ -39,23 +42,20 @@ function isCategoryUnlocked(categoryId) {
   return unlockedCategoryIds.has(String(categoryId));
 }
 
-// Bannière
-let bannerHTML = `
+const bannerHtml = `
   <p>Vos contenus préférés, bien au chaud dans leur nid.</p>
   <button class="organiser-btn">🪹 <a href="../html/fav.html">Organiser mon nid</a></button>
 `;
-document.querySelector(".js_banner").innerHTML = bannerHTML;
 
-// 🔍 Fonction pour récupérer la favicon à partir de l'URL du favori
+document.querySelector(".js_banner").innerHTML = bannerHtml;
+
 function getFavicon(url) {
   try {
     const parsed = new URL(url);
     const domain = parsed.hostname;
-    // Service Google pour les favicons
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-  } catch (e) {
+  } catch (error) {
     console.warn("URL invalide pour favicon :", url);
-    // Icône par défaut si l’URL est cassée
     return "https://www.google.com/s2/favicons?domain=example.com&sz=64";
   }
 }
@@ -80,17 +80,17 @@ function getFavItemMarkup(fav) {
   `;
 }
 
-function renderHomeCategories() {
+function renderHomeCards() {
   let html = ``;
 
-  category.forEach((myCategory) => {
-    const categoryId = String(myCategory.id_category);
-    const privacy = getCategoryPrivacy(myCategory);
+  categories.forEach((currentCategory) => {
+    const categoryId = String(currentCategory.id_category);
+    const privacy = getCategoryPrivacy(currentCategory);
     const isPrivate = privacy === "Private";
     const unlocked = !isPrivate || isCategoryUnlocked(categoryId);
     const lockEmoji = isPrivate ? (unlocked ? "🔓" : "🔒") : "";
 
-    const favsOfCategory = favs.filter((f) => String(f.id_category) === categoryId);
+    const favsOfCategory = favs.filter((fav) => String(fav.id_category) === categoryId);
 
     let cardBody = "";
 
@@ -104,13 +104,13 @@ function renderHomeCategories() {
         </div>
       `;
     } else {
-      const favsHTML =
+      const favsHtml =
         favsOfCategory.length > 0
           ? favsOfCategory.map(getFavItemMarkup).join("")
           : `<li class="empty-item">Aucun favori pour cette catégorie.</li>`;
 
       cardBody = `
-        <ul>${favsHTML}</ul>
+        <ul>${favsHtml}</ul>
         ${
           isPrivate
             ? `<div class="private-actions">
@@ -126,7 +126,7 @@ function renderHomeCategories() {
     html += `
       <div class="card ${isPrivate ? "private-card" : "public-card"}">
         <h3>
-          <span>${myCategory.category_name}</span>
+          <span>${currentCategory.category_name}</span>
           ${isPrivate ? `<span class="title-lock" aria-label="État de protection">${lockEmoji}</span>` : ""}
         </h3>
         ${cardBody}
@@ -134,14 +134,14 @@ function renderHomeCategories() {
     `;
   });
 
-  contentEl.innerHTML = html;
+  cardsContainerEl.innerHTML = html;
 }
 
-contentEl.addEventListener("click", (event) => {
+cardsContainerEl.addEventListener("click", (event) => {
   const unlockBtn = event.target.closest("[data-unlock-category]");
   if (unlockBtn) {
     const categoryId = String(unlockBtn.dataset.unlockCategory);
-    const selectedCategory = category.find(
+    const selectedCategory = categories.find(
       (item) => String(item.id_category) === categoryId
     );
 
@@ -161,7 +161,7 @@ contentEl.addEventListener("click", (event) => {
 
     unlockedCategoryIds.add(categoryId);
     persistUnlockedCategories();
-    renderHomeCategories();
+    renderHomeCards();
     return;
   }
 
@@ -171,7 +171,7 @@ contentEl.addEventListener("click", (event) => {
   const categoryId = String(lockBtn.dataset.lockCategory);
   unlockedCategoryIds.delete(categoryId);
   persistUnlockedCategories();
-  renderHomeCategories();
+  renderHomeCards();
 });
 
-renderHomeCategories();
+renderHomeCards();

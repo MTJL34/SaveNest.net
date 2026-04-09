@@ -1,6 +1,16 @@
 import connection from "../config/database.js";
 import { isPrivilegedUser } from "../middlewares/auth.js";
 
+const parsePositiveId = (value) => {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return id;
+};
+
+const canAccessUserOwnedResource = (req, ownerId) => {
+  return isPrivilegedUser(req.authUser) || req.authUser?.id_user === ownerId;
+};
+
 const favSelectQuery = `
   SELECT
     f.id_favs,
@@ -8,17 +18,27 @@ const favSelectQuery = `
     f.url_favs,
     f.added_date,
     f.logo,
-    s.id_category,
-    c.category_name
+    f.id_category,
+    c.category_name,
+    c.confidentiality,
+    c.id_user
   FROM favs f
-  LEFT JOIN save_ s ON s.id_favs = f.id_favs
-  LEFT JOIN category c ON c.id_category = s.id_category
+  INNER JOIN category c ON c.id_category = f.id_category
 `;
 
 const getRawFavById = async (id) => {
   const [rows] = await connection.execute(
-    "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
+    "SELECT id_favs, title_favs, url_favs, added_date, logo, id_category FROM favs WHERE id_favs = ?",
     [id]
+  );
+
+  return rows[0] || null;
+};
+
+const getCategoryRowById = async (idCategory) => {
+  const [rows] = await connection.execute(
+    "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_category = ?",
+    [idCategory]
   );
 
   return rows[0] || null;
@@ -64,9 +84,9 @@ export const getAllFavs = async (req, res) => {
 
 export const getFavById = async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = parsePositiveId(req.params.id);
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!id) {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
@@ -85,18 +105,39 @@ export const getFavById = async (req, res) => {
 
 export const createFav = async (req, res) => {
   try {
-    const { title_favs, url_favs = null, added_date = null, logo = null } = req.body;
+    const {
+      title_favs,
+      url_favs = null,
+      added_date = null,
+      logo = null,
+      id_category,
+    } = req.body;
     const trimmedTitle = typeof title_favs === "string" ? title_favs.trim() : "";
     const trimmedUrl = typeof url_favs === "string" ? url_favs.trim() : null;
     const trimmedLogo = typeof logo === "string" ? logo.trim() : null;
+    const parsedCategoryId = parsePositiveId(id_category);
 
     if (!trimmedTitle) {
       return res.status(400).json({ message: "title_favs est obligatoire." });
     }
 
+    if (!parsedCategoryId) {
+      return res.status(400).json({ message: "id_category est obligatoire et doit être valide." });
+    }
+
+    const targetCategory = await getCategoryRowById(parsedCategoryId);
+
+    if (!targetCategory) {
+      return res.status(404).json({ message: "Catégorie introuvable." });
+    }
+
+    if (!canAccessUserOwnedResource(req, targetCategory.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
     const [result] = await connection.execute(
-      "INSERT INTO favs (title_favs, url_favs, added_date, logo) VALUES (?, ?, ?, ?)",
-      [trimmedTitle, trimmedUrl || null, added_date || null, trimmedLogo || null]
+      "INSERT INTO favs (title_favs, url_favs, added_date, logo, id_category) VALUES (?, ?, ?, ?, ?)",
+      [trimmedTitle, trimmedUrl || null, added_date || null, trimmedLogo || null, parsedCategoryId]
     );
 
     const newFav =
@@ -115,35 +156,47 @@ export const createFav = async (req, res) => {
 
 export const updateFav = async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    const { title_favs, url_favs, added_date, logo } = req.body;
+    const id = parsePositiveId(req.params.id);
+    const { title_favs, url_favs, added_date, logo, id_category } = req.body;
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!id) {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
-    const [existingRows] = await connection.execute(
-      "SELECT id_favs, title_favs, url_favs, added_date, logo FROM favs WHERE id_favs = ?",
-      [id]
-    );
+    const currentFav = await getJoinedFavById(id, req.authUser);
 
-    if (existingRows.length === 0) {
+    if (!currentFav) {
       return res.status(404).json({ message: "Favori introuvable." });
     }
 
-    const currentFav = existingRows[0];
     const nextTitle = title_favs === undefined ? currentFav.title_favs : String(title_favs).trim();
     const nextUrl = url_favs === undefined ? currentFav.url_favs : (typeof url_favs === "string" ? url_favs.trim() : null);
     const nextDate = added_date === undefined ? currentFav.added_date : added_date;
     const nextLogo = logo === undefined ? currentFav.logo : (typeof logo === "string" ? logo.trim() : null);
+    const nextCategoryId =
+      id_category === undefined ? currentFav.id_category : parsePositiveId(id_category);
 
     if (!nextTitle) {
       return res.status(400).json({ message: "title_favs ne peut pas être vide." });
     }
 
+    if (!nextCategoryId) {
+      return res.status(400).json({ message: "id_category doit être un entier valide." });
+    }
+
+    const targetCategory = await getCategoryRowById(nextCategoryId);
+
+    if (!targetCategory) {
+      return res.status(404).json({ message: "Catégorie introuvable." });
+    }
+
+    if (!canAccessUserOwnedResource(req, targetCategory.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
     await connection.execute(
-      "UPDATE favs SET title_favs = ?, url_favs = ?, added_date = ?, logo = ? WHERE id_favs = ?",
-      [nextTitle, nextUrl || null, nextDate || null, nextLogo || null, id]
+      "UPDATE favs SET title_favs = ?, url_favs = ?, added_date = ?, logo = ?, id_category = ? WHERE id_favs = ?",
+      [nextTitle, nextUrl || null, nextDate || null, nextLogo || null, nextCategoryId, id]
     );
 
     const updatedFav = await getJoinedFavById(id, req.authUser);
@@ -160,17 +213,19 @@ export const updateFav = async (req, res) => {
 
 export const deleteFav = async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = parsePositiveId(req.params.id);
 
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!id) {
       return res.status(400).json({ message: "ID de favori invalide." });
     }
 
-    const [result] = await connection.execute("DELETE FROM favs WHERE id_favs = ?", [id]);
+    const currentFav = await getJoinedFavById(id, req.authUser);
 
-    if (result.affectedRows === 0) {
+    if (!currentFav) {
       return res.status(404).json({ message: "Favori introuvable." });
     }
+
+    const [result] = await connection.execute("DELETE FROM favs WHERE id_favs = ?", [id]);
 
     return res.status(200).json({ message: "Favori supprimé avec succès." });
   } catch (error) {
