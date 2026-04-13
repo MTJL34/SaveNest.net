@@ -1,25 +1,88 @@
 import { setHeader, setFooter } from "../scripts/layout.js";
-import { category } from "../data/category.js";
 
+const API_BASE_URL = "http://localhost:3000/api";
+const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const mainEl = document.querySelector(".js_main");
 
 setHeader();
 setFooter();
 
-const categories = category.map((item) => ({ ...item }));
-
+const categories = [];
 let currentMode = "view";
 let editingCategoryId = null;
 let actionMessage = "";
 let actionMessageType = "";
+let isLoading = true;
 
-function normalizeConfidentiality(value, password = "") {
-  const normalized = String(value || "").toLowerCase();
-  const hasPassword = typeof password === "string" && password.trim() !== "";
+function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+}
 
-  if (normalized === "private") return "Private";
-  if (normalized === "public") return "Public";
-  return hasPassword ? "Private" : "Public";
+function redirectToLogin() {
+  window.location.assign("../html/connexion.html#login");
+}
+
+async function parseJsonSafely(response) {
+  try {
+    return await response.json();
+  } catch (error) {
+    return {};
+  }
+}
+
+async function fetchWithAuth(path, options = {}) {
+  const token = getAuthToken();
+
+  if (!token) {
+    redirectToLogin();
+    throw new Error("Connectez-vous pour gérer vos catégories.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = await parseJsonSafely(response);
+
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new Error(data.message || "Votre session a expiré.");
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || "Une erreur est survenue côté serveur.");
+  }
+
+  return data;
+}
+
+function normalizeConfidentiality(value) {
+  const normalizedValue = String(value || "").toLowerCase();
+
+  if (value === 1 || value === "1" || value === true) return "Private";
+  if (value === 0 || value === "0" || value === false) return "Public";
+  if (normalizedValue === "private") return "Private";
+  if (normalizedValue === "public") return "Public";
+  return "Public";
+}
+
+function toApiConfidentiality(value) {
+  return normalizeConfidentiality(value) === "Private" ? 1 : 0;
+}
+
+function setInlineMessage(element, message, type = "") {
+  if (!element) return;
+
+  element.textContent = message;
+  element.className = `form-message${type ? ` is-${type}` : ""}`;
+}
+
+function clearActionMessage() {
+  actionMessage = "";
+  actionMessageType = "";
 }
 
 function resolveCategorySecurity({
@@ -31,8 +94,11 @@ function resolveCategorySecurity({
   const trimmedPassword = String(password || "").trim();
 
   if (confidentiality === "Private" && !trimmedPassword) {
-    messageEl.textContent = "Ajoute un mot de passe pour une catégorie privée.";
-    messageEl.className = "form-message is-error";
+    setInlineMessage(
+      messageEl,
+      "Ajoute un mot de passe pour une catégorie privée.",
+      "error"
+    );
     return null;
   }
 
@@ -42,9 +108,11 @@ function resolveCategorySecurity({
     );
 
     if (!shouldProtect) {
-      messageEl.textContent =
-        "Pour une catégorie publique, laissez le mot de passe vide.";
-      messageEl.className = "form-message is-error";
+      setInlineMessage(
+        messageEl,
+        "Pour une catégorie publique, laissez le mot de passe vide.",
+        "error"
+      );
       return null;
     }
 
@@ -68,67 +136,18 @@ function getActionButtonClass(mode) {
   return currentMode === mode ? "btn-primary is-active" : "btn-primary";
 }
 
-function renderEditPanel() {
-  if (currentMode !== "edit" || !editingCategoryId) {
-    return "";
+function renderCards() {
+  if (isLoading) {
+    return `<p class="form-message">Chargement des catégories...</p>`;
   }
 
-  const selectedCategory = categories.find(
-    (item) => String(item.id_category) === String(editingCategoryId)
-  );
-
-  if (!selectedCategory) {
-    return "";
+  if (categories.length === 0) {
+    return `<p class="form-message">Aucune catégorie pour le moment.</p>`;
   }
 
-  const confidentiality = normalizeConfidentiality(
-    selectedCategory.confidentiality,
-    selectedCategory.password
-  );
-
-  return `
-    <section class="inline-edit panel">
-      <h2>Modifier la catégorie #${selectedCategory.id_category}</h2>
-      <form id="inlineEditForm" class="category-form">
-        <label for="inlineEditName">Nom</label>
-        <input id="inlineEditName" type="text" value="${selectedCategory.category_name}" required />
-
-        <label for="inlineEditPrivacy">Confidentialité</label>
-        <select id="inlineEditPrivacy">
-          <option value="Public" ${confidentiality === "Public" ? "selected" : ""}>Publique</option>
-          <option value="Private" ${confidentiality === "Private" ? "selected" : ""}>Privée</option>
-        </select>
-
-        <label for="inlineEditPassword">Mot de passe (si privée)</label>
-        <input
-          id="inlineEditPassword"
-          type="password"
-          value="${selectedCategory.password || ""}"
-          placeholder="Optionnel si publique"
-          ${confidentiality === "Private" ? "required" : ""}
-        />
-
-        <div class="inline-edit-actions">
-          <button type="submit" class="btn-primary">Enregistrer</button>
-          <button type="button" id="cancelInlineEdit" class="btn-primary">Annuler</button>
-        </div>
-        <p id="inlineEditMessage" class="form-message" aria-live="polite"></p>
-      </form>
-    </section>
-  `;
-}
-
-function renderPage() {
-  const totalCount = categories.length;
-  const privateCount = categories.filter(
-    (item) =>
-      normalizeConfidentiality(item.confidentiality, item.password) === "Private"
-  ).length;
-  const publicCount = totalCount - privateCount;
-
-  const cards = categories
+  return categories
     .map((item) => {
-      const mode = normalizeConfidentiality(item.confidentiality, item.password);
+      const mode = normalizeConfidentiality(item.confidentiality);
       const isPrivate = mode === "Private";
       const isSelected =
         currentMode === "edit" && String(item.id_category) === String(editingCategoryId);
@@ -152,7 +171,63 @@ function renderPage() {
       `;
     })
     .join("");
+}
 
+function renderEditPanel() {
+  if (currentMode !== "edit" || !editingCategoryId) {
+    return "";
+  }
+
+  const selectedCategory = categories.find(
+    (item) => String(item.id_category) === String(editingCategoryId)
+  );
+
+  if (!selectedCategory) {
+    return "";
+  }
+
+  const confidentiality = normalizeConfidentiality(selectedCategory.confidentiality);
+
+  return `
+    <section class="inline-edit panel">
+      <h2>Modifier la catégorie #${selectedCategory.id_category}</h2>
+      <form id="inlineEditForm" class="category-form">
+        <label for="inlineEditName">Nom</label>
+        <input id="inlineEditName" type="text" value="${selectedCategory.category_name}" required />
+
+        <label for="inlineEditPrivacy">Confidentialité</label>
+        <select id="inlineEditPrivacy">
+          <option value="Public" ${confidentiality === "Public" ? "selected" : ""}>Publique</option>
+          <option value="Private" ${confidentiality === "Private" ? "selected" : ""}>Privée</option>
+        </select>
+
+        <label for="inlineEditPassword">Mot de passe (si privée)</label>
+        <input
+          id="inlineEditPassword"
+          type="password"
+          value=""
+          placeholder="Ressaisissez le mot de passe si la catégorie reste privée"
+          ${confidentiality === "Private" ? "required" : ""}
+        />
+
+        <p class="form-message">Pour une catégorie privée déjà créée, ressaisissez le mot de passe avant d'enregistrer.</p>
+
+        <div class="inline-edit-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+          <button type="button" id="cancelInlineEdit" class="btn-primary">Annuler</button>
+        </div>
+        <p id="inlineEditMessage" class="form-message" aria-live="polite"></p>
+      </form>
+    </section>
+  `;
+}
+
+function renderPage() {
+  const totalCount = categories.length;
+  const privateCount = categories.filter(
+    (item) => normalizeConfidentiality(item.confidentiality) === "Private"
+  ).length;
+  const publicCount = totalCount - privateCount;
   const helperText =
     currentMode === "edit"
       ? "Mode modification actif: clique sur une catégorie pour l'éditer."
@@ -204,7 +279,7 @@ function renderPage() {
         </div>
 
         <div class="cards-grid" id="cardsGrid">
-          ${cards}
+          ${renderCards()}
         </div>
 
         <div class="category-actions">
@@ -222,6 +297,37 @@ function renderPage() {
   `;
 
   setupFormEvents();
+}
+
+async function loadCategories(message = "", type = "") {
+  isLoading = true;
+  renderPage();
+
+  try {
+    const data = await fetchWithAuth("/categories");
+    categories.length = 0;
+    categories.push(...(Array.isArray(data) ? data : []));
+
+    if (
+      editingCategoryId &&
+      !categories.some((item) => String(item.id_category) === String(editingCategoryId))
+    ) {
+      editingCategoryId = null;
+    }
+
+    if (message) {
+      actionMessage = message;
+      actionMessageType = type;
+    }
+  } catch (error) {
+    categories.length = 0;
+    editingCategoryId = null;
+    actionMessage = error.message || "Impossible de charger les catégories.";
+    actionMessageType = "error";
+  } finally {
+    isLoading = false;
+    renderPage();
+  }
 }
 
 function setupFormEvents() {
@@ -246,7 +352,7 @@ function setupFormEvents() {
     }
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const name = nameInput.value.trim();
@@ -254,8 +360,7 @@ function setupFormEvents() {
     const password = passwordInput.value.trim();
 
     if (!name) {
-      messageEl.textContent = "Le nom de catégorie est obligatoire.";
-      messageEl.className = "form-message is-error";
+      setInlineMessage(messageEl, "Le nom de catégorie est obligatoire.", "error");
       return;
     }
 
@@ -268,46 +373,57 @@ function setupFormEvents() {
 
     if (!security) return;
 
-    const ids = categories.map((item) => Number(item.id_category)).filter(Number.isFinite);
-    const nextId = String(ids.length > 0 ? Math.max(...ids) + 1 : 1);
+    setInlineMessage(messageEl, "");
 
-    categories.push({
-      id_category: nextId,
-      category_name: name,
-      confidentiality: security.confidentiality,
-      password: security.password,
-    });
+    try {
+      const data = await fetchWithAuth("/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          category_name: name,
+          confidentiality: toApiConfidentiality(security.confidentiality),
+          password: security.confidentiality === "Private" ? security.password : null,
+        }),
+      });
 
-    actionMessage = "Catégorie ajoutée avec succès.";
-    actionMessageType = "success";
-    renderPage();
+      currentMode = "view";
+      editingCategoryId = null;
+      await loadCategories(data.message || "Catégorie ajoutée avec succès.", "success");
+    } catch (error) {
+      setInlineMessage(
+        messageEl,
+        error.message || "Impossible d'ajouter la catégorie pour le moment.",
+        "error"
+      );
+    }
   });
 
   enterEditModeBtn.addEventListener("click", () => {
     currentMode = "edit";
     editingCategoryId = null;
-    actionMessage = "";
-    actionMessageType = "";
+    clearActionMessage();
     renderPage();
   });
 
   enterDeleteModeBtn.addEventListener("click", () => {
     currentMode = "delete";
     editingCategoryId = null;
-    actionMessage = "";
-    actionMessageType = "";
+    clearActionMessage();
     renderPage();
   });
 
   exitActionModeBtn.addEventListener("click", () => {
     currentMode = "view";
     editingCategoryId = null;
-    actionMessage = "";
-    actionMessageType = "";
+    clearActionMessage();
     renderPage();
   });
 
-  cardsGrid.addEventListener("click", (event) => {
+  cardsGrid.addEventListener("click", async (event) => {
+    if (isLoading) return;
+
     const cardEl = event.target.closest(".category-card");
     if (!cardEl || currentMode === "view") return;
 
@@ -320,8 +436,7 @@ function setupFormEvents() {
 
     if (currentMode === "edit") {
       editingCategoryId = selectedId;
-      actionMessage = "";
-      actionMessageType = "";
+      clearActionMessage();
       renderPage();
       return;
     }
@@ -333,24 +448,27 @@ function setupFormEvents() {
 
       if (!isConfirmed) return;
 
-      const nextCategories = categories.filter(
-        (item) => String(item.id_category) !== String(selectedId)
-      );
+      try {
+        const data = await fetchWithAuth(`/categories/${selectedId}`, {
+          method: "DELETE",
+        });
 
-      categories.length = 0;
-      categories.push(...nextCategories);
-
-      actionMessage = "Catégorie supprimée avec succès.";
-      actionMessageType = "success";
-      renderPage();
+        currentMode = "view";
+        editingCategoryId = null;
+        await loadCategories(data.message || "Catégorie supprimée avec succès.", "success");
+      } catch (error) {
+        actionMessage =
+          error.message || "Impossible de supprimer la catégorie pour le moment.";
+        actionMessageType = "error";
+        renderPage();
+      }
     }
   });
 
   if (cancelInlineEditBtn) {
     cancelInlineEditBtn.addEventListener("click", () => {
       editingCategoryId = null;
-      actionMessage = "";
-      actionMessageType = "";
+      clearActionMessage();
       renderPage();
     });
   }
@@ -370,7 +488,7 @@ function setupFormEvents() {
       }
     });
 
-    inlineEditForm.addEventListener("submit", (event) => {
+    inlineEditForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       const selectedCategory = categories.find(
@@ -384,8 +502,11 @@ function setupFormEvents() {
       const password = inlineEditPassword.value.trim();
 
       if (!name) {
-        inlineEditMessage.textContent = "Le nom de catégorie est obligatoire.";
-        inlineEditMessage.className = "form-message is-error";
+        setInlineMessage(
+          inlineEditMessage,
+          "Le nom de catégorie est obligatoire.",
+          "error"
+        );
         return;
       }
 
@@ -398,16 +519,34 @@ function setupFormEvents() {
 
       if (!security) return;
 
-      selectedCategory.category_name = name;
-      selectedCategory.confidentiality = security.confidentiality;
-      selectedCategory.password = security.password;
+      setInlineMessage(inlineEditMessage, "");
 
-      editingCategoryId = null;
-      actionMessage = "Catégorie mise à jour avec succès.";
-      actionMessageType = "success";
-      renderPage();
+      try {
+        const data = await fetchWithAuth(`/categories/${editingCategoryId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category_name: name,
+            confidentiality: toApiConfidentiality(security.confidentiality),
+            password: security.confidentiality === "Private" ? security.password : null,
+          }),
+        });
+
+        currentMode = "view";
+        editingCategoryId = null;
+        await loadCategories(data.message || "Catégorie mise à jour avec succès.", "success");
+      } catch (error) {
+        setInlineMessage(
+          inlineEditMessage,
+          error.message || "Impossible de mettre à jour la catégorie pour le moment.",
+          "error"
+        );
+      }
     });
   }
 }
 
 renderPage();
+loadCategories();

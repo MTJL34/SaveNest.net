@@ -4,7 +4,7 @@ const router = express.Router();
 // Import the favsControllers
 
 import { getAllFavs, createFav, getFavById, updateFav, deleteFav } from "../controllers/favsControllers.js";
-import { ROLE_CODES, requireAuth, requireRole } from "../middlewares/auth.js";
+import { requireAuth } from "../middlewares/auth.js";
 
 router.use(requireAuth);
 
@@ -18,9 +18,9 @@ router.get("/:id", getFavById);
 router.post("/", createFav);
 
 // Route pour mettre à jour un favori
-router.patch("/:id", requireRole(ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR), updateFav);
+router.patch("/:id", updateFav);
 
 // Route pour supprimer un favori
-router.delete("/:id", requireRole(ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR), deleteFav);
+router.delete("/:id", deleteFav);
 
 export default router;

@@ -458,17 +458,29 @@ export const deleteUser = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   try {
-    const { mail, password } = req.body;
-    const trimmedMail = normalizeMail(mail);
+    const { identifier, mail, pseudo, password } = req.body;
+    const rawIdentifier =
+      typeof identifier === "string" && identifier.trim() !== ""
+        ? identifier
+        : typeof mail === "string" && mail.trim() !== ""
+          ? mail
+          : pseudo;
+    const trimmedIdentifier = normalizeText(rawIdentifier);
+    const normalizedMailCandidate = normalizeMail(rawIdentifier);
     const rawPassword = typeof password === "string" ? password : "";
 
-    if (!trimmedMail || !rawPassword) {
-      return res.status(400).json({ message: "mail et password sont obligatoires." });
+    if (!trimmedIdentifier || !rawPassword) {
+      return res.status(400).json({
+        message: "mail ou pseudo, puis password, sont obligatoires.",
+      });
     }
 
     const [rows] = await connection.execute(
-      "SELECT id_user, pseudo, mail, password, id_savenest, id_role FROM user_ WHERE mail = ? LIMIT 1",
-      [trimmedMail]
+      `SELECT id_user, pseudo, mail, password, id_savenest, id_role
+      FROM user_
+      WHERE LOWER(mail) = ? OR pseudo = ?
+      LIMIT 1`,
+      [normalizedMailCandidate, trimmedIdentifier]
     );
 
     if (rows.length === 0) {

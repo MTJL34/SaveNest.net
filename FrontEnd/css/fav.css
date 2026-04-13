@@ -192,6 +192,16 @@ select:focus {
   opacity: 0.75;
 }
 
+.help.is-error {
+  color: #9f1d1d;
+  opacity: 1;
+}
+
+.help.is-success {
+  color: #1f6f3d;
+  opacity: 1;
+}
+
 /* ====== ACTIONS ====== */
 .actions {
   grid-column: 1 / -1;
@@ -220,6 +230,11 @@ select:focus {
 
 .btn-primary:hover {
   background-color: var(--accent-600);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-ghost {

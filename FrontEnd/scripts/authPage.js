@@ -44,7 +44,7 @@ const loginForm = document.querySelector(".login-form");
 const signupForm = document.querySelector(".signup-form");
 const loginFeedbackEl = document.querySelector(".login-feedback");
 const signupFeedbackEl = document.querySelector(".signup-feedback");
-const loginMailInput = document.getElementById("loginMail");
+const loginIdentifierInput = document.getElementById("loginIdentifier");
 const loginPasswordInput = document.getElementById("loginPassword");
 const signupPseudoInput = document.getElementById("signupPseudo");
 const signupEmailInput = document.getElementById("signupEmail");
@@ -310,11 +310,15 @@ if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const mail = loginMailInput?.value.trim() || "";
+    const identifier = loginIdentifierInput?.value.trim() || "";
     const password = loginPasswordInput?.value || "";
 
-    if (!mail || !password) {
-      setFeedback(loginFeedbackEl, "Entrez votre e-mail et votre mot de passe.", "error");
+    if (!identifier || !password) {
+      setFeedback(
+        loginFeedbackEl,
+        "Entrez votre e-mail ou votre pseudo, puis votre mot de passe.",
+        "error"
+      );
       return;
     }
 
@@ -328,7 +332,7 @@ if (loginForm) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mail,
+          identifier,
           password,
         }),
       });
@@ -439,8 +443,8 @@ if (signupForm) {
       syncLanguageOptionStates();
       closeLanguagesSelect();
 
-      if (loginMailInput) {
-        loginMailInput.value = mail;
+      if (loginIdentifierInput) {
+        loginIdentifierInput.value = mail;
       }
 
       if (loginPasswordInput) {
@@ -455,7 +459,7 @@ if (signupForm) {
       );
       setFeedback(
         loginFeedbackEl,
-        "Compte créé. Connectez-vous avec votre e-mail et votre mot de passe.",
+        "Compte créé. Connectez-vous avec votre e-mail ou votre pseudo.",
         "success"
       );
     } catch (error) {
