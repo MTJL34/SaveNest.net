@@ -1,28 +1,23 @@
 categories
 Create : POST http://localhost:3000/api/categories
-Read : GETByID http://localhost:3000/api/categories
-Read by ID : http://localhost:3000/api/categories/ID
+Read : GET http://localhost:3000/api/categories
+Read by ID : GET http://localhost:3000/api/categories/ID
+Unlock private category : POST http://localhost:3000/api/categories/ID/unlock
 Update : PATCH http://localhost:3000/api/categories/ID
 Delete : DELETE http://localhost:3000/api/categories/ID
 
 favs
-Create : POST http://localhost:3000/api/favs/
-Read : GET http://localhost:3000/api/favs/
-Read by ID : GETByID http://localhost:3000/api/favs/ID
+Create : POST http://localhost:3000/api/favs
+Read : GET http://localhost:3000/api/favs
+Read by ID : GET http://localhost:3000/api/favs/ID
 Update : PATCH http://localhost:3000/api/favs/ID
 Delete : DELETE http://localhost:3000/api/favs/ID
 
-save
-Create : POST
-Read : GET http://localhost:3000/api/save
-Read by ID : GETByID http://localhost:3000/api/save/ID
-Update : 
-Delete : 
-
-
-Users
-Create : POST
-Read : GET
-Read by ID : GetByID
-Update : PATCH
-Delete : DELETE
+auth / users
+List users : GET http://localhost:3000/api/auth
+Register : POST http://localhost:3000/api/auth/register
+Login : POST http://localhost:3000/api/auth/login
+Logout : GET http://localhost:3000/api/auth/logout
+Read user by ID : GET http://localhost:3000/api/auth/ID
+Update user : PATCH http://localhost:3000/api/auth/ID
+Delete user : DELETE http://localhost:3000/api/auth/ID

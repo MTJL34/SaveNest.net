@@ -1,12 +1,14 @@
 import { setHeader, setFooter } from "../scripts/layout.js";
-import { category as categories } from "../data/category.js";
-import { favs } from "../data/favs.js";
 
 setHeader();
 setFooter();
 
+const API_BASE_URL = "http://localhost:3000/api";
+const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
 const cardsContainerEl = document.querySelector(".js_content");
+let categories = [];
+let favs = [];
 
 function loadUnlockedCategories() {
   try {
@@ -29,13 +31,98 @@ function persistUnlockedCategories() {
   );
 }
 
-function getCategoryPrivacy(item) {
-  const confidentiality = String(item.confidentiality || "").toLowerCase();
-  const hasPassword = typeof item.password === "string" && item.password.trim() !== "";
+function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+}
 
-  if (confidentiality === "private") return "Private";
-  if (confidentiality === "public") return "Public";
-  return hasPassword ? "Private" : "Public";
+function redirectToLogin() {
+  window.location.assign("../html/connexion.html#login");
+}
+
+async function parseJsonSafely(response) {
+  try {
+    return await response.json();
+  } catch (error) {
+    return {};
+  }
+}
+
+function showHomeMessage(message) {
+  cardsContainerEl.innerHTML = `<p class="empty-item">${message}</p>`;
+}
+
+async function fetchWithAuth(path, options = {}) {
+  const token = getAuthToken();
+
+  if (!token) {
+    redirectToLogin();
+    throw new Error("Connectez-vous pour accéder à vos favoris.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = await parseJsonSafely(response);
+
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new Error(data.message || "Votre session a expiré.");
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || "Une erreur est survenue côté serveur.");
+  }
+
+  return data;
+}
+
+async function loadHomeData() {
+  showHomeMessage("Chargement de vos favoris...");
+
+  try {
+    const [categoriesData, favsData] = await Promise.all([
+      fetchWithAuth("/categories"),
+      fetchWithAuth("/favs"),
+    ]);
+
+    categories = Array.isArray(categoriesData) ? categoriesData : [];
+    favs = Array.isArray(favsData) ? favsData : [];
+    renderHomeCards();
+  } catch (error) {
+    console.error("Erreur lors du chargement de la page d'accueil :", error);
+    showHomeMessage(error.message || "Impossible de charger les favoris.");
+  }
+}
+
+async function requestCategoryUnlock(categoryId, password) {
+  return fetchWithAuth(`/categories/${categoryId}/unlock`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password }),
+  });
+}
+
+function getCategoryPrivacy(item) {
+  const confidentiality = item.confidentiality;
+  const normalizedConfidentiality = String(confidentiality || "").toLowerCase();
+
+  if (confidentiality === 1 || confidentiality === "1" || confidentiality === true) {
+    return "Private";
+  }
+
+  if (confidentiality === 0 || confidentiality === "0" || confidentiality === false) {
+    return "Public";
+  }
+
+  if (normalizedConfidentiality === "private") return "Private";
+  if (normalizedConfidentiality === "public") return "Public";
+  return "Public";
 }
 
 function isCategoryUnlocked(categoryId) {
@@ -81,6 +168,11 @@ function getFavItemMarkup(fav) {
 }
 
 function renderHomeCards() {
+  if (categories.length === 0) {
+    showHomeMessage("Aucune catégorie à afficher pour le moment.");
+    return;
+  }
+
   let html = ``;
 
   categories.forEach((currentCategory) => {
@@ -137,7 +229,7 @@ function renderHomeCards() {
   cardsContainerEl.innerHTML = html;
 }
 
-cardsContainerEl.addEventListener("click", (event) => {
+cardsContainerEl.addEventListener("click", async (event) => {
   const unlockBtn = event.target.closest("[data-unlock-category]");
   if (unlockBtn) {
     const categoryId = String(unlockBtn.dataset.unlockCategory);
@@ -147,15 +239,16 @@ cardsContainerEl.addEventListener("click", (event) => {
 
     if (!selectedCategory) return;
 
-    const expectedPassword = String(selectedCategory.password || "");
     const userInput = window.prompt(
       `Mot de passe de la catégorie "${selectedCategory.category_name}" :`
     );
 
     if (userInput === null) return;
 
-    if (expectedPassword && userInput !== expectedPassword) {
-      window.alert("Mot de passe incorrect.");
+    try {
+      await requestCategoryUnlock(categoryId, userInput);
+    } catch (error) {
+      window.alert(error.message || "Mot de passe incorrect.");
       return;
     }
 
@@ -174,4 +267,4 @@ cardsContainerEl.addEventListener("click", (event) => {
   renderHomeCards();
 });
 
-renderHomeCards();
+loadHomeData();

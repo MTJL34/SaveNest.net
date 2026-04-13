@@ -3,7 +3,14 @@ const router = express.Router();
 
 // Import the categoriesControllers
 
-import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory } from '../controllers/categoriesControllers.js';
+import {
+  getAllCategories,
+  createCategory,
+  getCategoryById,
+  updateCategory,
+  deleteCategory,
+  unlockCategory,
+} from '../controllers/categoriesControllers.js';
 import { requireAuth } from "../middlewares/auth.js";
 
 router.use(requireAuth);
@@ -16,6 +23,9 @@ router.get('/:id', getCategoryById);
 
 // Route pour créer une nouvelle catégorie
 router.post('/', createCategory);
+
+// Route pour déverrouiller une catégorie privée
+router.post('/:id/unlock', unlockCategory);
 
 // Route pour mettre à jour une catégorie
 router.patch('/:id', updateCategory);

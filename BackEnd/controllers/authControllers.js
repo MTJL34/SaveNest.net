@@ -15,6 +15,11 @@ const normalizeText = (value) => (typeof value === "string" ? value.trim() : "")
 
 const normalizeMail = (value) => normalizeText(value).toLowerCase();
 const isAdminUser = (user) => user?.role_code === ROLE_CODES.ADMIN;
+const normalizeSpokenLanguages = (value) => {
+  if (!Array.isArray(value)) return [];
+
+  return [...new Set(value.map(normalizeText).filter(Boolean))];
+};
 
 const userSelectQuery = `
   SELECT
@@ -90,15 +95,25 @@ const getRawUserById = async (idUser) => {
   return rows[0] || null;
 };
 
-const ensureForeignKeysExist = async ({ id_savenest, id_role }) => {
-  const [[saveNestRows], [roleRows]] = await Promise.all([
-    connection.execute("SELECT id_savenest FROM savenest WHERE id_savenest = ? LIMIT 1", [id_savenest]),
-    connection.execute("SELECT id_role FROM roles WHERE id_role = ? LIMIT 1", [id_role]),
-  ]);
+const ensureForeignKeysExist = async (
+  { id_savenest = null, id_role },
+  executor = connection
+) => {
+  if (id_savenest !== null) {
+    const [saveNestRows] = await executor.execute(
+      "SELECT id_savenest FROM savenest WHERE id_savenest = ? LIMIT 1",
+      [id_savenest]
+    );
 
-  if (saveNestRows.length === 0) {
-    return { message: "SaveNest introuvable." };
+    if (saveNestRows.length === 0) {
+      return { message: "SaveNest introuvable." };
+    }
   }
+
+  const [roleRows] = await executor.execute(
+    "SELECT id_role FROM roles WHERE id_role = ? LIMIT 1",
+    [id_role]
+  );
 
   if (roleRows.length === 0) {
     return { message: "Rôle introuvable." };
@@ -107,7 +122,12 @@ const ensureForeignKeysExist = async ({ id_savenest, id_role }) => {
   return null;
 };
 
-const findConflictingUser = async ({ pseudo, mail, excludeId = null }) => {
+const findConflictingUser = async ({
+  pseudo,
+  mail,
+  excludeId = null,
+  executor = connection,
+}) => {
   const values = [pseudo, mail];
   let query =
     "SELECT id_user, pseudo, mail FROM user_ WHERE (pseudo = ? OR mail = ?) LIMIT 1";
@@ -118,8 +138,57 @@ const findConflictingUser = async ({ pseudo, mail, excludeId = null }) => {
     values.push(excludeId);
   }
 
-  const [rows] = await connection.execute(query, values);
+  const [rows] = await executor.execute(query, values);
   return rows[0] || null;
+};
+
+const createSaveNestRecord = async (executor = connection) => {
+  const [result] = await executor.execute(
+    "INSERT INTO savenest (date_inscription) VALUES (CURRENT_TIMESTAMP)"
+  );
+
+  return result.insertId;
+};
+
+const insertSpokenLanguages = async ({
+  idUser,
+  spokenLanguages,
+  executor = connection,
+}) => {
+  const normalizedLanguages = normalizeSpokenLanguages(spokenLanguages);
+
+  if (normalizedLanguages.length === 0) {
+    return { status: 400, message: "Choisissez au moins une langue parlée." };
+  }
+
+  const placeholders = normalizedLanguages.map(() => "?").join(", ");
+  const [rows] = await executor.execute(
+    `SELECT id_language, language_name
+    FROM language_
+    WHERE language_name IN (${placeholders})`,
+    normalizedLanguages
+  );
+
+  if (rows.length !== normalizedLanguages.length) {
+    const foundNames = new Set(rows.map((row) => row.language_name));
+    const missingLanguages = normalizedLanguages.filter(
+      (languageName) => !foundNames.has(languageName)
+    );
+
+    return {
+      status: 400,
+      message: `Langues invalides : ${missingLanguages.join(", ")}.`,
+    };
+  }
+
+  for (const row of rows) {
+    await executor.execute(
+      "INSERT INTO speaking (id_user, id_language) VALUES (?, ?)",
+      [idUser, row.id_language]
+    );
+  }
+
+  return null;
 };
 
 export const getAllUsers = async (req, res) => {
@@ -163,28 +232,32 @@ export const getUserById = async (req, res) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { pseudo, mail, password, id_savenest } = req.body;
+    const {
+      pseudo,
+      mail,
+      password,
+      id_savenest,
+      spoken_languages = [],
+    } = req.body;
     const trimmedPseudo = normalizeText(pseudo);
     const trimmedMail = normalizeMail(mail);
     const rawPassword = typeof password === "string" ? password : "";
-    const parsedSaveNest = parsePositiveId(id_savenest);
+    const normalizedLanguages = normalizeSpokenLanguages(spoken_languages);
+    const hasProvidedSaveNest =
+      id_savenest !== undefined && id_savenest !== null && String(id_savenest).trim() !== "";
+    const parsedSaveNest = hasProvidedSaveNest ? parsePositiveId(id_savenest) : null;
     const parsedRole = DEFAULT_ROLE_ID;
 
     if (!trimmedPseudo || !trimmedMail || !rawPassword) {
       return res.status(400).json({ message: "pseudo, mail et password sont obligatoires." });
     }
 
-    if (!parsedSaveNest) {
+    if (hasProvidedSaveNest && !parsedSaveNest) {
       return res.status(400).json({ message: "id_savenest doit être un entier valide." });
     }
 
-    const foreignKeyError = await ensureForeignKeysExist({
-      id_savenest: parsedSaveNest,
-      id_role: parsedRole,
-    });
-
-    if (foreignKeyError) {
-      return res.status(404).json(foreignKeyError);
+    if (normalizedLanguages.length === 0) {
+      return res.status(400).json({ message: "Choisissez au moins une langue parlée." });
     }
 
     const conflictingUser = await findConflictingUser({
@@ -201,19 +274,68 @@ export const registerUser = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const db = await connection.getConnection();
 
-    const [result] = await connection.execute(
-      "INSERT INTO user_ (pseudo, mail, password, id_savenest, id_role) VALUES (?, ?, ?, ?, ?)",
-      [trimmedPseudo, trimmedMail, hashedPassword, parsedSaveNest, parsedRole]
-    );
+    try {
+      await db.beginTransaction();
 
-    const createdUser = await getJoinedUserById(result.insertId);
-    const publicUser = await buildPublicUser(createdUser);
+      let nextSaveNestId = parsedSaveNest;
 
-    return res.status(201).json({
-      message: "Inscription réussie.",
-      user: publicUser,
-    });
+      if (nextSaveNestId === null) {
+        const roleError = await ensureForeignKeysExist(
+          { id_savenest: null, id_role: parsedRole },
+          db
+        );
+
+        if (roleError) {
+          await db.rollback();
+          return res.status(404).json(roleError);
+        }
+
+        nextSaveNestId = await createSaveNestRecord(db);
+      } else {
+        const foreignKeyError = await ensureForeignKeysExist(
+          { id_savenest: nextSaveNestId, id_role: parsedRole },
+          db
+        );
+
+        if (foreignKeyError) {
+          await db.rollback();
+          return res.status(404).json(foreignKeyError);
+        }
+      }
+
+      const [result] = await db.execute(
+        "INSERT INTO user_ (pseudo, mail, password, id_savenest, id_role) VALUES (?, ?, ?, ?, ?)",
+        [trimmedPseudo, trimmedMail, hashedPassword, nextSaveNestId, parsedRole]
+      );
+
+      const languagesError = await insertSpokenLanguages({
+        idUser: result.insertId,
+        spokenLanguages: normalizedLanguages,
+        executor: db,
+      });
+
+      if (languagesError) {
+        await db.rollback();
+        return res.status(languagesError.status).json({ message: languagesError.message });
+      }
+
+      await db.commit();
+
+      const createdUser = await getJoinedUserById(result.insertId);
+      const publicUser = await buildPublicUser(createdUser);
+
+      return res.status(201).json({
+        message: "Inscription réussie.",
+        user: publicUser,
+      });
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    } finally {
+      db.release();
+    }
   } catch (error) {
     console.error("Error in registerUser:", error);
     return res.status(500).json({ message: "Erreur serveur." });

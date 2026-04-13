@@ -44,6 +44,12 @@ const loginForm = document.querySelector(".login-form");
 const signupForm = document.querySelector(".signup-form");
 const loginFeedbackEl = document.querySelector(".login-feedback");
 const signupFeedbackEl = document.querySelector(".signup-feedback");
+const loginMailInput = document.getElementById("loginMail");
+const loginPasswordInput = document.getElementById("loginPassword");
+const signupPseudoInput = document.getElementById("signupPseudo");
+const signupEmailInput = document.getElementById("signupEmail");
+const signupPasswordInput = document.getElementById("signupPassword");
+const signupPasswordConfirmInput = document.getElementById("signupPasswordConfirm");
 const languagesSelectEl = document.querySelector(".js_languagesSelect");
 const languagesTriggerEl = document.querySelector(".js_languagesTrigger");
 const languagesTriggerTextEl = document.querySelector(".js_languagesTriggerText");
@@ -51,6 +57,10 @@ const languagesCountEl = document.querySelector(".js_languagesCount");
 const languageCheckboxes = [
   ...document.querySelectorAll('.signup-form input[name="spoken_languages"]'),
 ];
+
+const API_BASE_URL = "http://localhost:3000/api";
+const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
+const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 
 const getModeFromHash = () => (window.location.hash === "#signup" ? "signup" : "login");
 
@@ -188,6 +198,58 @@ const refreshHeaderLanguages = (preferredLanguage = null) => {
   return getSelectedLanguageLabels();
 };
 
+const setFeedback = (element, message, type = "") => {
+  if (!element) return;
+
+  element.textContent = message;
+  element.classList.remove("is-error", "is-success");
+
+  if (type) {
+    element.classList.add(`is-${type}`);
+  }
+};
+
+const setSubmitState = (form, isLoading, defaultLabel, loadingLabel) => {
+  const submitButton = form?.querySelector('button[type="submit"]');
+  if (!submitButton) return;
+
+  submitButton.disabled = isLoading;
+  submitButton.textContent = isLoading ? loadingLabel : defaultLabel;
+};
+
+const parseJsonSafely = async (response) => {
+  try {
+    return await response.json();
+  } catch (error) {
+    return {};
+  }
+};
+
+const saveAuthSession = ({ token, user }) => {
+  if (typeof token === "string" && token.trim() !== "") {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  }
+
+  if (user) {
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  }
+};
+
+const getLanguageNamesFromUser = (user) => {
+  if (!Array.isArray(user?.spoken_languages)) return [];
+
+  return user.spoken_languages
+    .map((language) => {
+      if (typeof language === "string") return language;
+      if (language && typeof language.language_name === "string") {
+        return language.language_name;
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+};
+
 switchButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setActiveMode(button.dataset.authTarget);
@@ -245,36 +307,166 @@ languageCheckboxes.forEach((checkbox) => {
 });
 
 if (loginForm) {
-  loginForm.addEventListener("submit", (event) => {
+  loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    loginFeedbackEl.textContent = "Connexion prête à être branchée au backend.";
+
+    const mail = loginMailInput?.value.trim() || "";
+    const password = loginPasswordInput?.value || "";
+
+    if (!mail || !password) {
+      setFeedback(loginFeedbackEl, "Entrez votre e-mail et votre mot de passe.", "error");
+      return;
+    }
+
+    setFeedback(loginFeedbackEl, "");
+    setSubmitState(loginForm, true, "Se connecter", "Connexion...");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mail,
+          password,
+        }),
+      });
+      const data = await parseJsonSafely(response);
+
+      if (!response.ok) {
+        setFeedback(
+          loginFeedbackEl,
+          data.message || "Impossible de se connecter pour le moment.",
+          "error"
+        );
+        return;
+      }
+
+      saveAuthSession({
+        token: data.token,
+        user: data.user,
+      });
+
+      const userLanguageNames = getLanguageNamesFromUser(data.user);
+      if (userLanguageNames.length > 0) {
+        saveUserLanguagePreferences(userLanguageNames, userLanguageNames[0]);
+        setHeader();
+      }
+
+      setFeedback(
+        loginFeedbackEl,
+        data.message || "Connexion réussie. Redirection en cours...",
+        "success"
+      );
+
+      window.setTimeout(() => {
+        window.location.assign("../html/index.html");
+      }, 500);
+    } catch (error) {
+      console.error("Erreur lors de la connexion :", error);
+      setFeedback(
+        loginFeedbackEl,
+        "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.",
+        "error"
+      );
+    } finally {
+      setSubmitState(loginForm, false, "Se connecter", "Connexion...");
+    }
   });
 }
 
 if (signupForm) {
-  signupForm.addEventListener("submit", (event) => {
+  signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const password = document.getElementById("signupPassword")?.value ?? "";
-    const passwordConfirm = document.getElementById("signupPasswordConfirm")?.value ?? "";
+    const pseudo = signupPseudoInput?.value.trim() || "";
+    const mail = signupEmailInput?.value.trim() || "";
+    const password = signupPasswordInput?.value ?? "";
+    const passwordConfirm = signupPasswordConfirmInput?.value ?? "";
     const selectedLanguages = getSelectedLanguages();
 
+    if (!pseudo || !mail || !password) {
+      setFeedback(signupFeedbackEl, "Tous les champs sont obligatoires.", "error");
+      return;
+    }
+
     if (password !== passwordConfirm) {
-      signupFeedbackEl.textContent = "Les mots de passe ne correspondent pas.";
+      setFeedback(signupFeedbackEl, "Les mots de passe ne correspondent pas.", "error");
       return;
     }
 
     if (selectedLanguages.length === 0) {
-      signupFeedbackEl.textContent = "Choisissez au moins une langue parlée.";
+      setFeedback(signupFeedbackEl, "Choisissez au moins une langue parlée.", "error");
       return;
     }
 
-    const selectedLanguageLabels = refreshHeaderLanguages(
-      selectedLanguages[selectedLanguages.length - 1]
-    );
+    setFeedback(signupFeedbackEl, "");
+    setSubmitState(signupForm, true, "Créer mon compte", "Inscription...");
 
-    if (!selectedLanguageLabels) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          pseudo,
+          mail,
+          password,
+          spoken_languages: selectedLanguages,
+        }),
+      });
+      const data = await parseJsonSafely(response);
 
-    signupFeedbackEl.textContent = `Inscription prête. Langues enregistrées pour le header : ${selectedLanguageLabels.join(", ")}.`;
+      if (!response.ok) {
+        setFeedback(
+          signupFeedbackEl,
+          data.message || "Impossible de créer le compte pour le moment.",
+          "error"
+        );
+        return;
+      }
+
+      const userLanguageNames = getLanguageNamesFromUser(data.user);
+      const preferredLanguages =
+        userLanguageNames.length > 0 ? userLanguageNames : selectedLanguages;
+
+      saveUserLanguagePreferences(preferredLanguages, preferredLanguages[0] || null);
+      setHeader();
+
+      signupForm.reset();
+      syncLanguageOptionStates();
+      closeLanguagesSelect();
+
+      if (loginMailInput) {
+        loginMailInput.value = mail;
+      }
+
+      if (loginPasswordInput) {
+        loginPasswordInput.value = "";
+      }
+
+      setActiveMode("login");
+      setFeedback(
+        signupFeedbackEl,
+        data.message || "Compte créé avec succès.",
+        "success"
+      );
+      setFeedback(
+        loginFeedbackEl,
+        "Compte créé. Connectez-vous avec votre e-mail et votre mot de passe.",
+        "success"
+      );
+    } catch (error) {
+      console.error("Erreur lors de l'inscription :", error);
+      setFeedback(
+        signupFeedbackEl,
+        "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.",
+        "error"
+      );
+    } finally {
+      setSubmitState(signupForm, false, "Créer mon compte", "Inscription...");
+    }
   });
 }

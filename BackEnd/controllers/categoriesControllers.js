@@ -236,3 +236,50 @@ export const deleteCategory = async (req, res) => {
     return res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+export const unlockCategory = async (req, res) => {
+  try {
+    const id = parsePositiveId(req.params.id);
+    const submittedPassword =
+      typeof req.body.password === "string" ? req.body.password.trim() : "";
+
+    if (!id) {
+      return res.status(400).json({ message: "ID de catégorie invalide." });
+    }
+
+    const category = await getCategoryRowById(id);
+
+    if (!category) {
+      return res.status(404).json({ message: "Catégorie introuvable." });
+    }
+
+    if (!canAccessUserOwnedResource(req, category.id_user)) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    if (Number(category.confidentiality) !== 1) {
+      return res.status(200).json({
+        message: "Cette catégorie est déjà publique.",
+        category: toPublicCategory(category),
+      });
+    }
+
+    if (!submittedPassword) {
+      return res.status(400).json({
+        message: "Le mot de passe de la catégorie est obligatoire.",
+      });
+    }
+
+    if (submittedPassword !== String(category.password || "")) {
+      return res.status(401).json({ message: "Mot de passe incorrect." });
+    }
+
+    return res.status(200).json({
+      message: "Catégorie déverrouillée.",
+      category: toPublicCategory(category),
+    });
+  } catch (error) {
+    console.error("Error in unlockCategory:", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+};

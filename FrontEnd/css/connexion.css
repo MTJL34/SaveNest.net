@@ -437,6 +437,14 @@ body {
   color: var(--sn-brand);
 }
 
+.form-feedback.is-error {
+  color: #b42318;
+}
+
+.form-feedback.is-success {
+  color: #166534;
+}
+
 .auth-submit-btn {
   margin-top: 0.2rem;
   min-height: 42px;
@@ -448,6 +456,11 @@ body {
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.24s ease, box-shadow 0.24s ease !important;
+}
+
+.auth-submit-btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 .auth-submit-btn:hover {
