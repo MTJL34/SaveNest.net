@@ -53,7 +53,7 @@ const html = `
     <section class="panel edit">
       <h2>Modifier un favori</h2>
       <div>
-        <h3>Liste des favoris</h3>
+        <h3>Liste des favoris par catégorie</h3>
         <ul id="favDraftList" class="fav-draft-list"></ul>
         <p id="emptyState" class="help">Aucun favori pour le moment.</p>
       </div>
@@ -201,16 +201,68 @@ function renderCategorySelects() {
   editFavCategory.innerHTML = `<option value="">-- Sélectionnez une catégorie --</option>${options}`;
 }
 
+function getFavoritesGroupedByCategory() {
+  const categoryOrder = new Map(
+    categories.map((category, index) => [String(category.id_category), index])
+  );
+  const sortedFavorites = [...favorites].sort((left, right) => {
+    const leftOrder = categoryOrder.get(String(left.id_category)) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = categoryOrder.get(String(right.id_category)) ?? Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return Number(left.id_favs) - Number(right.id_favs);
+  });
+  const groupedFavorites = new Map();
+
+  sortedFavorites.forEach((fav) => {
+    const categoryKey = String(fav.id_category || "");
+    const categoryName =
+      fav.category_name ||
+      categories.find((category) => String(category.id_category) === categoryKey)?.category_name ||
+      "Sans catégorie";
+
+    if (!groupedFavorites.has(categoryKey)) {
+      groupedFavorites.set(categoryKey, {
+        categoryId: categoryKey,
+        categoryName,
+        items: [],
+      });
+    }
+
+    groupedFavorites.get(categoryKey).items.push(fav);
+  });
+
+  return [...groupedFavorites.values()];
+}
+
 function renderFavoritesList() {
-  favDraftList.innerHTML = favorites
+  const groupedFavorites = getFavoritesGroupedByCategory();
+
+  favDraftList.innerHTML = groupedFavorites
     .map(
-      (fav) => `
-        <li class="fav-draft-item">
-          <div class="fav-draft-content">
-            <strong>#${fav.id_favs} - ${fav.title_favs}</strong>
-            <a href="${fav.url_favs}" target="_blank" rel="noopener noreferrer">${fav.url_favs}</a>
-            <small>Catégorie: ${fav.category_name}</small>
+      (group) => `
+        <li class="fav-group">
+          <div class="fav-group-header">
+            <h4 class="fav-group-title">${group.categoryName}</h4>
+            <span class="fav-group-count">${group.items.length}</span>
           </div>
+          <ul class="fav-group-list">
+            ${group.items
+              .map(
+                (fav) => `
+                  <li class="fav-draft-item">
+                    <div class="fav-draft-content">
+                      <strong>#${fav.id_favs} - ${fav.title_favs}</strong>
+                      <a href="${fav.url_favs}" target="_blank" rel="noopener noreferrer">${fav.url_favs}</a>
+                    </div>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>
         </li>
       `
     )
@@ -220,14 +272,23 @@ function renderFavoritesList() {
 }
 
 function renderSelectOptions() {
-  const options = favorites
+  const groupedOptions = getFavoritesGroupedByCategory()
     .map(
-      (fav) => `<option value="${fav.id_favs}">#${fav.id_favs} - ${fav.title_favs}</option>`
+      (group) => `
+        <optgroup label="${group.categoryName}">
+          ${group.items
+            .map(
+              (fav) =>
+                `<option value="${fav.id_favs}">#${fav.id_favs} - ${fav.title_favs}</option>`
+            )
+            .join("")}
+        </optgroup>
+      `
     )
     .join("");
 
-  editFavId.innerHTML = `<option value="">-- Choisissez un favori --</option>${options}`;
-  deleteFavId.innerHTML = `<option value="">-- Choisissez un favori --</option>${options}`;
+  editFavId.innerHTML = `<option value="">-- Choisissez un favori --</option>${groupedOptions}`;
+  deleteFavId.innerHTML = `<option value="">-- Choisissez un favori --</option>${groupedOptions}`;
 }
 
 function fillEditForm(selectedId) {

@@ -116,9 +116,11 @@ body {
 /* ====== GRID LAYOUT ====== */
 .cards-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2rem;
   justify-items: center;
+  max-width: calc((5 * 320px) + (4 * 2rem));
+  margin: 0 auto;
 }
 
 .card {
@@ -306,6 +308,26 @@ footer a:hover {
   object-fit: contain;
 }
 
+@media (max-width: 1480px) {
+  .cards-container {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-width: calc((4 * 320px) + (3 * 2rem));
+  }
+}
+
+@media (max-width: 1180px) {
+  .cards-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: calc((3 * 320px) + (2 * 2rem));
+  }
+}
+
+@media (max-width: 920px) {
+  .cards-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: calc((2 * 320px) + 2rem);
+  }
+}
 
 /* ====== RESPONSIVE ====== */
 @media (max-width: 768px) {
@@ -316,6 +338,7 @@ footer a:hover {
 
   .cards-container {
     grid-template-columns: 1fr;
+    max-width: 320px;
   }
 
   footer {

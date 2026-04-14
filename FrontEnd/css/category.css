@@ -176,6 +176,14 @@ body.page {
   box-shadow: 0 8px 18px rgba(83, 45, 20, 0.25);
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .form-message {
   min-height: 1.2rem;
   font-size: 0.88rem;
@@ -292,6 +300,28 @@ body.page {
   box-shadow: 0 0 0 3px rgba(180, 134, 92, 0.18);
 }
 
+.selection-indicator {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--sn-line);
+  background: var(--sn-surface);
+  color: transparent;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.selection-indicator.is-selected {
+  background: var(--sn-brand-soft);
+  border-color: var(--sn-brand-soft);
+  color: var(--sn-surface);
+}
+
 .category-meta {
   margin-top: 0.35rem;
   color: var(--sn-text-soft);
@@ -303,6 +333,38 @@ body.page {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
+}
+
+.bulk-delete-toolbar {
+  margin-top: 0.9rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px dashed var(--sn-line);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-surface);
+  display: grid;
+  gap: 0.8rem;
+}
+
+.bulk-delete-count {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.bulk-delete-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.btn-secondary {
+  min-height: var(--sn-btn-height);
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  padding: 0.8rem 1rem;
+  background: var(--sn-surface-soft);
+  color: var(--sn-text);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .btn-primary.is-active {
@@ -386,6 +448,10 @@ footer a:hover {
   }
 
   .category-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-delete-actions {
     grid-template-columns: 1fr;
   }
 

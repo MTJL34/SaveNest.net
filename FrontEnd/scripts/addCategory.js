@@ -10,9 +10,11 @@ setFooter();
 const categories = [];
 let currentMode = "view";
 let editingCategoryId = null;
+let selectedCategoryIds = new Set();
 let actionMessage = "";
 let actionMessageType = "";
 let isLoading = true;
+let isDeletingSelection = false;
 
 function getAuthToken() {
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
@@ -85,6 +87,37 @@ function clearActionMessage() {
   actionMessageType = "";
 }
 
+function clearDeleteSelection() {
+  selectedCategoryIds = new Set();
+}
+
+function syncDeleteSelection() {
+  const availableIds = new Set(
+    categories.map((item) => String(item.id_category))
+  );
+
+  selectedCategoryIds = new Set(
+    [...selectedCategoryIds].filter((id) => availableIds.has(id))
+  );
+}
+
+function toggleDeleteSelection(categoryId) {
+  const normalizedId = String(categoryId);
+
+  if (selectedCategoryIds.has(normalizedId)) {
+    selectedCategoryIds.delete(normalizedId);
+    return;
+  }
+
+  selectedCategoryIds.add(normalizedId);
+}
+
+function getSelectedCategories() {
+  return categories.filter((item) =>
+    selectedCategoryIds.has(String(item.id_category))
+  );
+}
+
 function resolveCategorySecurity({
   confidentiality,
   password,
@@ -149,8 +182,13 @@ function renderCards() {
     .map((item) => {
       const mode = normalizeConfidentiality(item.confidentiality);
       const isPrivate = mode === "Private";
-      const isSelected =
-        currentMode === "edit" && String(item.id_category) === String(editingCategoryId);
+      const isEditSelected =
+        currentMode === "edit" &&
+        String(item.id_category) === String(editingCategoryId);
+      const isDeleteSelected =
+        currentMode === "delete" &&
+        selectedCategoryIds.has(String(item.id_category));
+      const isSelected = isEditSelected || isDeleteSelected;
       const interactiveClass = currentMode === "view" ? "" : "is-clickable";
 
       return `
@@ -158,6 +196,11 @@ function renderCards() {
           class="category-card ${isPrivate ? "is-private" : "is-public"} ${interactiveClass} ${isSelected ? "is-selected" : ""}"
           data-category-id="${item.id_category}"
         >
+          ${
+            currentMode === "delete"
+              ? `<span class="selection-indicator ${isDeleteSelected ? "is-selected" : ""}" aria-hidden="true">${isDeleteSelected ? "✓" : ""}</span>`
+              : ""
+          }
           ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">🔒</span>' : ""}
           <div class="category-top">
             <p class="category-id">#${item.id_category}</p>
@@ -171,6 +214,64 @@ function renderCards() {
       `;
     })
     .join("");
+}
+
+function renderDeleteToolbar() {
+  if (currentMode !== "delete") {
+    return "";
+  }
+
+  const selectedCount = selectedCategoryIds.size;
+  const selectedLabel =
+    selectedCount > 1
+      ? `${selectedCount} catégories sélectionnées.`
+      : selectedCount === 1
+        ? "1 catégorie sélectionnée."
+        : "Aucune catégorie sélectionnée.";
+
+  return `
+    <div class="bulk-delete-toolbar">
+      <p class="bulk-delete-count">${selectedLabel}</p>
+      <div class="bulk-delete-actions">
+        <button
+          type="button"
+          id="clearDeleteSelection"
+          class="btn-secondary"
+          ${selectedCount === 0 || isDeletingSelection ? "disabled" : ""}
+        >
+          Tout désélectionner
+        </button>
+        <button
+          type="button"
+          id="deleteSelectedCategories"
+          class="btn-primary"
+          ${selectedCount === 0 || isDeletingSelection ? "disabled" : ""}
+        >
+          ${
+            isDeletingSelection
+              ? "Suppression..."
+              : `Supprimer la sélection${selectedCount > 0 ? ` (${selectedCount})` : ""}`
+          }
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function buildDeleteConfirmationMessage(selectedItems) {
+  const count = selectedItems.length;
+  const previewNames = selectedItems
+    .slice(0, 3)
+    .map((item) => `"${item.category_name}"`);
+  const remainingCount = count - previewNames.length;
+  const suffix =
+    remainingCount > 0
+      ? ` et ${remainingCount} autre${remainingCount > 1 ? "s" : ""}`
+      : "";
+
+  return `Confirmer la suppression de ${count} catégorie${
+    count > 1 ? "s" : ""
+  } : ${previewNames.join(", ")}${suffix} ?`;
 }
 
 function renderEditPanel() {
@@ -232,7 +333,7 @@ function renderPage() {
     currentMode === "edit"
       ? "Mode modification actif: clique sur une catégorie pour l'éditer."
       : currentMode === "delete"
-        ? "Mode suppression actif: clique sur une catégorie pour la supprimer."
+        ? "Mode suppression actif: clique sur plusieurs catégories pour les sélectionner, puis supprime la sélection."
         : "Choisis une action puis clique sur une catégorie.";
 
   mainEl.innerHTML = `
@@ -288,6 +389,8 @@ function renderPage() {
           <button id="exitActionMode" class="btn-primary">Annuler l'action</button>
         </div>
 
+        ${renderDeleteToolbar()}
+
         <p class="action-helper">${helperText}</p>
         <p class="form-message ${actionMessageType ? `is-${actionMessageType}` : ""}" id="actionMessage" aria-live="polite">${actionMessage}</p>
 
@@ -307,6 +410,7 @@ async function loadCategories(message = "", type = "") {
     const data = await fetchWithAuth("/categories");
     categories.length = 0;
     categories.push(...(Array.isArray(data) ? data : []));
+    syncDeleteSelection();
 
     if (
       editingCategoryId &&
@@ -322,6 +426,7 @@ async function loadCategories(message = "", type = "") {
   } catch (error) {
     categories.length = 0;
     editingCategoryId = null;
+    clearDeleteSelection();
     actionMessage = error.message || "Impossible de charger les catégories.";
     actionMessageType = "error";
   } finally {
@@ -340,6 +445,8 @@ function setupFormEvents() {
   const enterEditModeBtn = document.getElementById("enterEditMode");
   const enterDeleteModeBtn = document.getElementById("enterDeleteMode");
   const exitActionModeBtn = document.getElementById("exitActionMode");
+  const deleteSelectedCategoriesBtn = document.getElementById("deleteSelectedCategories");
+  const clearDeleteSelectionBtn = document.getElementById("clearDeleteSelection");
   const inlineEditForm = document.getElementById("inlineEditForm");
   const cancelInlineEditBtn = document.getElementById("cancelInlineEdit");
 
@@ -390,6 +497,7 @@ function setupFormEvents() {
 
       currentMode = "view";
       editingCategoryId = null;
+      clearDeleteSelection();
       await loadCategories(data.message || "Catégorie ajoutée avec succès.", "success");
     } catch (error) {
       setInlineMessage(
@@ -403,6 +511,7 @@ function setupFormEvents() {
   enterEditModeBtn.addEventListener("click", () => {
     currentMode = "edit";
     editingCategoryId = null;
+    clearDeleteSelection();
     clearActionMessage();
     renderPage();
   });
@@ -410,6 +519,7 @@ function setupFormEvents() {
   enterDeleteModeBtn.addEventListener("click", () => {
     currentMode = "delete";
     editingCategoryId = null;
+    clearDeleteSelection();
     clearActionMessage();
     renderPage();
   });
@@ -417,12 +527,13 @@ function setupFormEvents() {
   exitActionModeBtn.addEventListener("click", () => {
     currentMode = "view";
     editingCategoryId = null;
+    clearDeleteSelection();
     clearActionMessage();
     renderPage();
   });
 
   cardsGrid.addEventListener("click", async (event) => {
-    if (isLoading) return;
+    if (isLoading || isDeletingSelection) return;
 
     const cardEl = event.target.closest(".category-card");
     if (!cardEl || currentMode === "view") return;
@@ -442,28 +553,81 @@ function setupFormEvents() {
     }
 
     if (currentMode === "delete") {
+      toggleDeleteSelection(selectedId);
+      clearActionMessage();
+      renderPage();
+    }
+  });
+
+  if (clearDeleteSelectionBtn) {
+    clearDeleteSelectionBtn.addEventListener("click", () => {
+      clearDeleteSelection();
+      clearActionMessage();
+      renderPage();
+    });
+  }
+
+  if (deleteSelectedCategoriesBtn) {
+    deleteSelectedCategoriesBtn.addEventListener("click", async () => {
+      if (isDeletingSelection) return;
+
+      const selectedCategories = getSelectedCategories();
+
+      if (selectedCategories.length === 0) {
+        actionMessage = "Sélectionnez au moins une catégorie à supprimer.";
+        actionMessageType = "error";
+        renderPage();
+        return;
+      }
+
       const isConfirmed = window.confirm(
-        `Confirmer la suppression de la catégorie "${selectedCategory.category_name}" ?`
+        buildDeleteConfirmationMessage(selectedCategories)
       );
 
       if (!isConfirmed) return;
 
-      try {
-        const data = await fetchWithAuth(`/categories/${selectedId}`, {
-          method: "DELETE",
-        });
+      isDeletingSelection = true;
+      clearActionMessage();
+      renderPage();
 
-        currentMode = "view";
-        editingCategoryId = null;
-        await loadCategories(data.message || "Catégorie supprimée avec succès.", "success");
-      } catch (error) {
-        actionMessage =
-          error.message || "Impossible de supprimer la catégorie pour le moment.";
-        actionMessageType = "error";
-        renderPage();
+      let deletedCount = 0;
+      const failedNames = [];
+
+      for (const category of selectedCategories) {
+        try {
+          await fetchWithAuth(`/categories/${category.id_category}`, {
+            method: "DELETE",
+          });
+          deletedCount += 1;
+        } catch (error) {
+          failedNames.push(category.category_name);
+        }
       }
-    }
-  });
+
+      isDeletingSelection = false;
+      editingCategoryId = null;
+      clearDeleteSelection();
+
+      if (failedNames.length > 0) {
+        currentMode = "delete";
+        await loadCategories(
+          `${
+            deletedCount > 0
+              ? `${deletedCount} catégorie${deletedCount > 1 ? "s" : ""} supprimée${deletedCount > 1 ? "s" : ""}. `
+              : ""
+          }Impossible de supprimer : ${failedNames.join(", ")}.`,
+          "error"
+        );
+        return;
+      }
+
+      currentMode = "view";
+      await loadCategories(
+        `${deletedCount} catégorie${deletedCount > 1 ? "s" : ""} supprimée${deletedCount > 1 ? "s" : ""} avec succès.`,
+        "success"
+      );
+    });
+  }
 
   if (cancelInlineEditBtn) {
     cancelInlineEditBtn.addEventListener("click", () => {
@@ -536,6 +700,7 @@ function setupFormEvents() {
 
         currentMode = "view";
         editingCategoryId = null;
+        clearDeleteSelection();
         await loadCategories(data.message || "Catégorie mise à jour avec succès.", "success");
       } catch (error) {
         setInlineMessage(

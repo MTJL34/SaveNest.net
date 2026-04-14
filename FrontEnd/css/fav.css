@@ -276,6 +276,43 @@ select:focus {
   background: var(--sn-surface-soft);
 }
 
+.fav-group {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.fav-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px dashed var(--sn-line);
+}
+
+.fav-group-title {
+  font-size: 0.98rem;
+  color: var(--brand-700);
+}
+
+.fav-group-count {
+  min-width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.fav-group-list {
+  list-style: none;
+  display: grid;
+  gap: 0.6rem;
+}
+
 .fav-draft-item {
   background: white;
   border: 1px solid var(--sn-line);
