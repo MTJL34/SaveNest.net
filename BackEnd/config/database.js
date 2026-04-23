@@ -1,3 +1,4 @@
+// Ce fichier ouvre la connexion MySQL utilisee par tous les controleurs du backend.
 import mysql from "mysql2";
 import dotenv from "dotenv";
 

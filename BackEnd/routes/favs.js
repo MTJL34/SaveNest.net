@@ -1,3 +1,4 @@
+// Ce fichier relie les URL /api/favs au controleur des favoris.
 import express from "express";
 import {
   getAllFavs,
@@ -10,6 +11,7 @@ import { requireAuth } from "../middlewares/auth.js";
 
 const router = express.Router();
 
+// Toutes les routes favoris demandent d'etre connecte.
 router.use(requireAuth);
 
 router.get("/", getAllFavs);

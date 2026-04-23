@@ -1,3 +1,4 @@
+// Ce middleware verifie le token JWT et controle les droits d'acces des utilisateurs.
 import jwt from "jsonwebtoken";
 import connection from "../config/database.js";
 
@@ -9,6 +10,7 @@ export const ROLE_CODES = Object.freeze({
 
 const PRIVILEGED_ROLE_CODES = [ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR];
 
+// Cette fonction recupere proprement le token dans l'en-tete Authorization.
 function extractBearerToken(authorizationHeader) {
   if (typeof authorizationHeader !== "string") {
     return null;
@@ -86,6 +88,7 @@ export function isPrivilegedUser(user) {
 }
 
 export async function requireAuth(req, res, next) {
+  // On lit le token, on le decode, puis on recharge l'utilisateur depuis la base.
   try {
     const token = extractBearerToken(req.headers.authorization);
 

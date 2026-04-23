@@ -1,3 +1,4 @@
+// Ce script charge les categories et les favoris affiches sur la page d'accueil.
 import { setHeader, setFooter } from "../scripts/layout.js";
 
 setHeader();
@@ -19,11 +20,12 @@ let unlockErrorsByCategoryId = {};
 
 const bannerHtml = `
   <p>Vos contenus préférés, bien au chaud dans leur nid.</p>
-  <button class="organiser-btn">🪹 <a href="../html/fav.html">Organiser mon nid</a></button>
+  <button class="organiser-btn"><a href="../html/fav.html">Organiser mon nid</a></button>
 `;
 
 document.querySelector(".js_banner").innerHTML = bannerHtml;
 
+// Les fonctions suivantes lisent et ecrivent les donnees locales du navigateur.
 function loadUnlockedCategories() {
   try {
     const rawValue = sessionStorage.getItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
@@ -189,6 +191,7 @@ function getHomeErrorMessage(error) {
 }
 
 async function fetchWithAuth(path, options = {}) {
+  // Cette fonction ajoute automatiquement le token a chaque appel API.
   const token = getAuthToken();
 
   if (!token) {
@@ -378,6 +381,7 @@ function removeUnlockError(categoryId) {
 }
 
 function renderHomeCards() {
+  // Ici, on reconstruit toutes les cartes HTML a partir des categories chargees.
   if (categories.length === 0) {
     showHomeMessage("Aucune catégorie à afficher pour le moment.");
     return;
@@ -391,7 +395,7 @@ function renderHomeCards() {
     const privacy = getCategoryPrivacy(currentCategory);
     const isPrivate = privacy === "Private";
     const unlocked = !isPrivate || isCategoryUnlocked(categoryId);
-    const lockEmoji = isPrivate ? (unlocked ? "🔓" : "🔒") : "";
+    const lockLabel = isPrivate ? (unlocked ? "Ouverte" : "Fermée") : "";
     const favsOfCategory = getFavsOfCategory(categoryId);
     let cardBody = "";
 
@@ -403,7 +407,7 @@ function renderHomeCards() {
           <p>Contenu protégé par mot de passe</p>
           ${unlockError ? `<p class="unlock-error" role="alert">${unlockError}</p>` : ""}
           <button type="button" class="hatch-btn" data-unlock-category="${categoryId}">
-            🥚 Faire éclore l'œuf
+            Ouvrir la catégorie
           </button>
         </div>
       `;
@@ -424,7 +428,7 @@ function renderHomeCards() {
         privateActions = `
           <div class="private-actions">
             <button type="button" class="protect-btn" data-lock-category="${categoryId}">
-              🪺 Protéger le nid
+              Refermer la catégorie
             </button>
           </div>
         `;
@@ -440,7 +444,7 @@ function renderHomeCards() {
       <div class="card ${isPrivate ? "private-card" : "public-card"}">
         <h3>
           <span>${currentCategory.category_name}</span>
-          ${isPrivate ? `<span class="title-lock" aria-label="État de protection">${lockEmoji}</span>` : ""}
+          ${isPrivate ? `<span class="title-lock" aria-label="État de protection">${lockLabel}</span>` : ""}
         </h3>
         ${cardBody}
       </div>
@@ -463,6 +467,7 @@ function findCategoryById(categoryId) {
 }
 
 cardsContainerEl.addEventListener("click", async function handleCardsClick(event) {
+  // Un seul ecouteur suffit pour gerer tous les boutons ajoutes dynamiquement.
   const unlockBtn = event.target.closest("[data-unlock-category]");
 
   if (unlockBtn) {

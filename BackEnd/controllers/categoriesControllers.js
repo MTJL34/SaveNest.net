@@ -1,6 +1,8 @@
+// Ce controleur gere la lecture et la modification des categories.
 import connection from "../config/database.js";
 import { isPrivilegedUser } from "../middlewares/auth.js";
 
+// Les fonctions suivantes servent a reutiliser la meme logique dans plusieurs routes.
 function parsePositiveId(value) {
   const id = Number(value);
 
@@ -122,6 +124,7 @@ export async function getCategoryById(req, res) {
 }
 
 export async function createCategory(req, res) {
+  // Une categorie privee doit toujours avoir un mot de passe.
   try {
     const body = req.body;
     const categoryName =

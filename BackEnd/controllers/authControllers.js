@@ -1,3 +1,4 @@
+// Ce controleur gere l'inscription, la connexion et la gestion des utilisateurs.
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import connection from "../config/database.js";
@@ -5,6 +6,7 @@ import { ROLE_CODES } from "../middlewares/auth.js";
 
 const DEFAULT_ROLE_ID = 2;
 
+// Ces petites fonctions nettoient les donnees recues avant de les utiliser.
 const parsePositiveId = (value) => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) return null;
@@ -60,6 +62,7 @@ function isBcryptHash(value) {
 }
 
 async function verifyStoredPassword(rawPassword, storedPassword) {
+  // On accepte temporairement l'ancien format en clair, puis on le remplace apres connexion.
   if (typeof storedPassword !== "string" || storedPassword === "") {
     return { isValid: false, needsUpgrade: false };
   }
@@ -370,6 +373,7 @@ export const getUserById = async (req, res) => {
 };
 
 export const registerUser = async (req, res) => {
+  // L'inscription cree l'utilisateur, son espace SaveNest et ses langues parlees.
   try {
     const {
       pseudo,
@@ -623,6 +627,7 @@ export const deleteUser = async (req, res) => {
 };
 
 export const loginUser = async (req, res) => {
+  // La connexion accepte soit l'email, soit le pseudo.
   try {
     const { identifier, mail, pseudo, password } = req.body;
     const rawIdentifier =

@@ -1,3 +1,4 @@
+// Ce script gere la page de creation, modification et suppression des categories.
 import { setHeader, setFooter } from "../scripts/layout.js";
 
 const API_BASE_URL = "http://localhost:3000/api";
@@ -323,10 +324,10 @@ function renderCards() {
         >
           ${
             currentMode === "delete"
-              ? `<span class="selection-indicator ${isDeleteSelected ? "is-selected" : ""}" aria-hidden="true">${isDeleteSelected ? "✓" : ""}</span>`
+              ? `<span class="selection-indicator ${isDeleteSelected ? "is-selected" : ""}" aria-hidden="true">${isDeleteSelected ? "OK" : ""}</span>`
               : ""
           }
-          ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">🔒</span>' : ""}
+          ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">Privée</span>' : ""}
           <div class="category-top">
             <div class="category-badges">
               ${isDefaultCategory ? '<span class="default-badge">Par défaut</span>' : ""}

@@ -1,6 +1,8 @@
+// Ce controleur gere la lecture et la modification des favoris.
 import connection from "../config/database.js";
 import { isPrivilegedUser } from "../middlewares/auth.js";
 
+// Les fonctions utilitaires du haut evitent de repeter les memes verifications.
 function parsePositiveId(value) {
   const id = Number(value);
 
@@ -127,6 +129,7 @@ export async function getFavById(req, res) {
 }
 
 export async function createFav(req, res) {
+  // Un favori doit toujours appartenir a une categorie existante.
   try {
     const body = req.body;
     const title = typeof body.title_favs === "string" ? body.title_favs.trim() : "";

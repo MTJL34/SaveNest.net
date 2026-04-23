@@ -1,3 +1,4 @@
+// Ce fichier relie les URL /api/auth aux fonctions du controleur des utilisateurs.
 import express from "express";
 import {
   getAllUsers,

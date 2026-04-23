@@ -1,3 +1,4 @@
+// Ce fichier construit le header, le footer et la gestion des langues cote front.
 export const USER_LANGUAGES_STORAGE_KEY = "savenest_user_languages";
 export const ACTIVE_LANGUAGE_STORAGE_KEY = "savenest_active_language";
 
@@ -7,11 +8,12 @@ const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
 const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
 
+// Cette configuration centralise les libelles visibles dans le header.
 const LANGUAGE_CONFIG = {
   French: {
     code: "fr",
     label: "Français",
-    flag: "🇫🇷",
+    flag: "FR",
     header: {
       home: "Accueil",
       favorites: "Favoris",
@@ -24,7 +26,7 @@ const LANGUAGE_CONFIG = {
   English: {
     code: "en",
     label: "English",
-    flag: "🇬🇧",
+    flag: "EN",
     header: {
       home: "Home",
       favorites: "Favorites",
@@ -37,7 +39,7 @@ const LANGUAGE_CONFIG = {
   Spanish: {
     code: "es",
     label: "Español",
-    flag: "🇪🇸",
+    flag: "ES",
     header: {
       home: "Inicio",
       favorites: "Favoritos",
@@ -50,7 +52,7 @@ const LANGUAGE_CONFIG = {
   German: {
     code: "de",
     label: "Deutsch",
-    flag: "🇩🇪",
+    flag: "DE",
     header: {
       home: "Startseite",
       favorites: "Favoriten",
@@ -63,7 +65,7 @@ const LANGUAGE_CONFIG = {
   Japanese: {
     code: "ja",
     label: "日本語",
-    flag: "🇯🇵",
+    flag: "JA",
     header: {
       home: "ホーム",
       favorites: "お気に入り",
@@ -224,6 +226,7 @@ export function saveUserLanguagePreferences(
 }
 
 function hydrateTransferredAuthSession() {
+  // Cette etape recupere une session passee dans l'URL apres une redirection.
   if (typeof window === "undefined") {
     return;
   }
@@ -368,6 +371,7 @@ function markLayoutReady() {
 }
 
 function renderHeader(headerEl) {
+  // A chaque changement de langue, on rerend simplement tout le header.
   const selectedLanguages = getStoredUserLanguages();
   const activeLanguage = getActiveLanguage(selectedLanguages);
   const activeLanguageConfig =

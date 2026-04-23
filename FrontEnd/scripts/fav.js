@@ -1,3 +1,4 @@
+// Ce script gere la page d'ajout, de modification et de suppression des favoris.
 import { setHeader, setFooter } from "../scripts/layout.js";
 
 const API_BASE_URL = "http://localhost:3000/api";
@@ -957,11 +958,6 @@ function renderEditCategoryQuickList() {
             <span class="edit-category-pill-state">${categoryStateLabel}</span>
           </span>
           <span class="edit-category-pill-side">
-            ${
-              isPrivate
-                ? `<span class="edit-category-pill-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>`
-                : ""
-            }
             <span class="edit-category-pill-count">${count}</span>
           </span>
         </button>
@@ -1046,7 +1042,6 @@ function renderEditBoard() {
               </div>
 
               <span class="edit-category-side">
-                ${isPrivate ? `<span class="edit-category-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>` : ""}
                 <span class="fav-group-count">${count}</span>
                 <span class="edit-category-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               </span>
@@ -1125,7 +1120,6 @@ function renderDeleteBoard() {
               </div>
 
               <span class="edit-category-side">
-                ${isPrivate ? `<span class="edit-category-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>` : ""}
                 <span class="fav-group-count">${count}</span>
                 <span class="edit-category-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               </span>

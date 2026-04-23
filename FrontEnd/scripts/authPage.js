@@ -1,3 +1,4 @@
+// Ce script pilote la page de connexion et d'inscription.
 import {
   USER_LANGUAGES_STORAGE_KEY,
   saveUserLanguagePreferences,
@@ -8,6 +9,7 @@ import {
 setHeader();
 setFooter();
 
+// Ce contenu change selon le mode choisi : connexion ou inscription.
 const authContent = {
   login: {
     eyebrow: "Espace personnel",
@@ -442,6 +444,7 @@ languageCheckboxes.forEach((checkbox) => {
 
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
+    // La connexion envoie l'identifiant et le mot de passe a l'API.
     event.preventDefault();
 
     const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim() : "";
@@ -521,6 +524,7 @@ if (loginForm) {
 
 if (signupForm) {
   signupForm.addEventListener("submit", async (event) => {
+    // L'inscription cree le compte puis replace l'utilisateur sur le mode connexion.
     event.preventDefault();
 
     const pseudo = signupPseudoInput ? signupPseudoInput.value.trim() : "";

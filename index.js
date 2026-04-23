@@ -1,3 +1,4 @@
+// Point d'entree du projet : cree le serveur Express, sert le front et branche les routes API.
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -16,16 +17,18 @@ const frontEndRoot = path.join(__dirname, "FrontEnd");
 const homePagePath = path.join(frontEndRoot, "html", "index.html");
 const PORT = Number(process.env.PORT) || 3000;
 
-// Le serveur sert le front statique et expose les routes API du projet.
+// Les middlewares generaux s'appliquent a tout le projet.
 app.use(cors());
 app.use(express.json());
 
+// Tous les fichiers du dossier FrontEnd sont servis tels quels au navigateur.
 app.use(express.static(frontEndRoot));
 
 app.get("/", function sendHomePage(req, res) {
   res.sendFile(homePagePath);
 });
 
+// Chaque bloc /api/... delegue le travail au fichier de routes correspondant.
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/favs", favsRoutes);
