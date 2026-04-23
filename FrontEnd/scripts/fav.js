@@ -958,6 +958,11 @@ function renderEditCategoryQuickList() {
             <span class="edit-category-pill-state">${categoryStateLabel}</span>
           </span>
           <span class="edit-category-pill-side">
+            ${
+              isPrivate
+                ? `<span class="edit-category-pill-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>`
+                : ""
+            }
             <span class="edit-category-pill-count">${count}</span>
           </span>
         </button>
@@ -1042,6 +1047,7 @@ function renderEditBoard() {
               </div>
 
               <span class="edit-category-side">
+                ${isPrivate ? `<span class="edit-category-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>` : ""}
                 <span class="fav-group-count">${count}</span>
                 <span class="edit-category-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               </span>
@@ -1120,6 +1126,7 @@ function renderDeleteBoard() {
               </div>
 
               <span class="edit-category-side">
+                ${isPrivate ? `<span class="edit-category-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>` : ""}
                 <span class="fav-group-count">${count}</span>
                 <span class="edit-category-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               </span>

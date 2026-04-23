@@ -13,7 +13,7 @@ const LANGUAGE_CONFIG = {
   French: {
     code: "fr",
     label: "Français",
-    flag: "FR",
+    flag: "🇫🇷",
     header: {
       home: "Accueil",
       favorites: "Favoris",
@@ -26,7 +26,7 @@ const LANGUAGE_CONFIG = {
   English: {
     code: "en",
     label: "English",
-    flag: "EN",
+    flag: "🇬🇧",
     header: {
       home: "Home",
       favorites: "Favorites",
@@ -39,7 +39,7 @@ const LANGUAGE_CONFIG = {
   Spanish: {
     code: "es",
     label: "Español",
-    flag: "ES",
+    flag: "🇪🇸",
     header: {
       home: "Inicio",
       favorites: "Favoritos",
@@ -52,7 +52,7 @@ const LANGUAGE_CONFIG = {
   German: {
     code: "de",
     label: "Deutsch",
-    flag: "DE",
+    flag: "🇩🇪",
     header: {
       home: "Startseite",
       favorites: "Favoriten",
@@ -65,7 +65,7 @@ const LANGUAGE_CONFIG = {
   Japanese: {
     code: "ja",
     label: "日本語",
-    flag: "JA",
+    flag: "🇯🇵",
     header: {
       home: "ホーム",
       favorites: "お気に入り",

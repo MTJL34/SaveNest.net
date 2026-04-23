@@ -324,10 +324,10 @@ function renderCards() {
         >
           ${
             currentMode === "delete"
-              ? `<span class="selection-indicator ${isDeleteSelected ? "is-selected" : ""}" aria-hidden="true">${isDeleteSelected ? "OK" : ""}</span>`
+              ? `<span class="selection-indicator ${isDeleteSelected ? "is-selected" : ""}" aria-hidden="true">${isDeleteSelected ? "✓" : ""}</span>`
               : ""
           }
-          ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">Privée</span>' : ""}
+          ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">🔒</span>' : ""}
           <div class="category-top">
             <div class="category-badges">
               ${isDefaultCategory ? '<span class="default-badge">Par défaut</span>' : ""}

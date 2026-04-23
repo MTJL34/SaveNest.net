@@ -20,7 +20,7 @@ let unlockErrorsByCategoryId = {};
 
 const bannerHtml = `
   <p>Vos contenus préférés, bien au chaud dans leur nid.</p>
-  <button class="organiser-btn"><a href="../html/fav.html">Organiser mon nid</a></button>
+  <button class="organiser-btn">🪹 <a href="../html/fav.html">Organiser mon nid</a></button>
 `;
 
 document.querySelector(".js_banner").innerHTML = bannerHtml;
@@ -395,7 +395,7 @@ function renderHomeCards() {
     const privacy = getCategoryPrivacy(currentCategory);
     const isPrivate = privacy === "Private";
     const unlocked = !isPrivate || isCategoryUnlocked(categoryId);
-    const lockLabel = isPrivate ? (unlocked ? "Ouverte" : "Fermée") : "";
+    const lockLabel = isPrivate ? (unlocked ? "🔓" : "🔒") : "";
     const favsOfCategory = getFavsOfCategory(categoryId);
     let cardBody = "";
 
@@ -407,7 +407,7 @@ function renderHomeCards() {
           <p>Contenu protégé par mot de passe</p>
           ${unlockError ? `<p class="unlock-error" role="alert">${unlockError}</p>` : ""}
           <button type="button" class="hatch-btn" data-unlock-category="${categoryId}">
-            Ouvrir la catégorie
+            🥚 Faire éclore l'œuf
           </button>
         </div>
       `;
@@ -428,7 +428,7 @@ function renderHomeCards() {
         privateActions = `
           <div class="private-actions">
             <button type="button" class="protect-btn" data-lock-category="${categoryId}">
-              Refermer la catégorie
+              🪺 Protéger le nid
             </button>
           </div>
         `;
