@@ -13,9 +13,9 @@ body {
   background-color: var(--sn-bg);
   color: var(--sn-text);
 
-  min-height: 100vh;      /* ✅ hauteur minimum écran */
-  display: flex;          /* ✅ active flex */
-  flex-direction: column; /* ✅ empile header → main → footer */
+  min-height: 100vh;      /* hauteur minimum écran */
+  display: flex;          /* active flex */
+  flex-direction: column; /* empile header → main → footer */
 }
 
 /* ====== NAVBAR ====== */
@@ -91,7 +91,7 @@ body {
 }
 
 .organiser-btn:hover {
-  background-color: var(--sn-bg-alt);
+  background-color: var(--sn-accent);
   text-decoration: none;
   font-weight: normal;
   cursor: pointer;
@@ -124,7 +124,7 @@ body {
 }
 
 .card {
-  background-color: var(--sn-brand-strong);
+  background-color: var(--sn-brand);
   color: var(--sn-surface);
   border-radius: var(--sn-radius-lg);
   padding: var(--sn-space-card) 1.2rem;

@@ -1,12 +1,12 @@
 export const USER_LANGUAGES_STORAGE_KEY = "savenest_user_languages";
 export const ACTIVE_LANGUAGE_STORAGE_KEY = "savenest_active_language";
+
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
 const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
 
-// Petit dictionnaire de traduction pour le header.
 const LANGUAGE_CONFIG = {
   French: {
     code: "fr",
@@ -75,7 +75,7 @@ const LANGUAGE_CONFIG = {
   },
 };
 
-const footerMarkup = `
+export const footerMarkup = `
   <a href="../html/index.html" class="footer-logo" aria-label="Retour à l'accueil">
     <img src="../img/logo.png" alt="SaveNest logo">
     <span>SaveNest</span>
@@ -90,7 +90,7 @@ const footerMarkup = `
   </div>
 `;
 
-const normalizeLanguageName = (value) => {
+function normalizeLanguageName(value) {
   if (typeof value === "string" && LANGUAGE_CONFIG[value]) {
     return value;
   }
@@ -105,32 +105,63 @@ const normalizeLanguageName = (value) => {
   }
 
   return null;
-};
+}
 
-const getLanguageNamesFromUser = (user) => {
-  if (!Array.isArray(user?.spoken_languages)) return [];
+function keepUniqueLanguageNames(languageNames) {
+  const uniqueNames = [];
 
-  return [
-    ...new Set(user.spoken_languages.map(normalizeLanguageName).filter(Boolean)),
-  ];
-};
+  for (let index = 0; index < languageNames.length; index += 1) {
+    const languageName = normalizeLanguageName(languageNames[index]);
 
-const getStoredUserLanguages = () => {
+    if (!languageName) {
+      continue;
+    }
+
+    if (uniqueNames.includes(languageName)) {
+      continue;
+    }
+
+    uniqueNames.push(languageName);
+  }
+
+  return uniqueNames;
+}
+
+function getLanguageNamesFromUser(user) {
+  if (!user || !Array.isArray(user.spoken_languages)) {
+    return [];
+  }
+
+  return keepUniqueLanguageNames(user.spoken_languages);
+}
+
+function getStoredUserLanguages() {
   try {
-    const raw = localStorage.getItem(USER_LANGUAGES_STORAGE_KEY);
-    if (!raw) return ["French"];
+    const rawStoredLanguages = localStorage.getItem(USER_LANGUAGES_STORAGE_KEY);
 
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return ["French"];
+    if (!rawStoredLanguages) {
+      return ["French"];
+    }
 
-    const normalized = [...new Set(parsed.map(normalizeLanguageName).filter(Boolean))];
-    return normalized.length > 0 ? normalized : ["French"];
+    const parsedLanguages = JSON.parse(rawStoredLanguages);
+
+    if (!Array.isArray(parsedLanguages)) {
+      return ["French"];
+    }
+
+    const normalizedLanguages = keepUniqueLanguageNames(parsedLanguages);
+
+    if (normalizedLanguages.length === 0) {
+      return ["French"];
+    }
+
+    return normalizedLanguages;
   } catch (error) {
     return ["French"];
   }
-};
+}
 
-const getActiveLanguage = (selectedLanguages) => {
+function getActiveLanguage(selectedLanguages) {
   try {
     const storedLanguage = normalizeLanguageName(
       localStorage.getItem(ACTIVE_LANGUAGE_STORAGE_KEY)
@@ -140,14 +171,20 @@ const getActiveLanguage = (selectedLanguages) => {
       return storedLanguage;
     }
   } catch (error) {
-    // Pas bloquant : on retombe simplement sur la première langue disponible.
+    // On garde simplement la première langue disponible.
   }
 
-  return selectedLanguages[0] || "French";
-};
+  if (selectedLanguages.length > 0) {
+    return selectedLanguages[0];
+  }
 
-const resolveActiveLanguage = (selectedLanguages, preferredActiveLanguage = null) => {
-  const normalizedPreferredLanguage = normalizeLanguageName(preferredActiveLanguage);
+  return "French";
+}
+
+function resolveActiveLanguage(selectedLanguages, preferredActiveLanguage) {
+  const normalizedPreferredLanguage = normalizeLanguageName(
+    preferredActiveLanguage
+  );
 
   if (
     normalizedPreferredLanguage &&
@@ -157,15 +194,13 @@ const resolveActiveLanguage = (selectedLanguages, preferredActiveLanguage = null
   }
 
   return getActiveLanguage(selectedLanguages);
-};
+}
 
 export function saveUserLanguagePreferences(
   selectedLanguages,
   preferredActiveLanguage = null
 ) {
-  const normalizedLanguages = [
-    ...new Set(selectedLanguages.map(normalizeLanguageName).filter(Boolean)),
-  ];
+  const normalizedLanguages = keepUniqueLanguageNames(selectedLanguages);
 
   if (normalizedLanguages.length === 0) {
     return null;
@@ -188,8 +223,10 @@ export function saveUserLanguagePreferences(
   };
 }
 
-const hydrateTransferredAuthSession = () => {
-  if (typeof window === "undefined") return;
+function hydrateTransferredAuthSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
 
   try {
     const currentUrl = new URL(window.location.href);
@@ -244,34 +281,42 @@ const hydrateTransferredAuthSession = () => {
       `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
     );
   } catch (error) {
-    // Rien de bloquant ici : on garde simplement le flux standard.
+    // Si l'import de session échoue, la page continue simplement son chargement.
   }
-};
+}
 
 hydrateTransferredAuthSession();
 
-const getHeaderMarkup = (selectedLanguages, activeLanguage) => {
-  const currentLanguage = LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
-  const languageOptionsMarkup = selectedLanguages
-    .map((languageName) => {
-      const language = LANGUAGE_CONFIG[languageName];
-      const isSelected = languageName === activeLanguage ? " selected" : "";
+function buildLanguageOptionsMarkup(selectedLanguages, activeLanguage) {
+  let html = "";
 
-      return `<option value="${languageName}"${isSelected}>${language.flag} ${language.label}</option>`;
-    })
-    .join("");
+  for (let index = 0; index < selectedLanguages.length; index += 1) {
+    const languageName = selectedLanguages[index];
+    const language = LANGUAGE_CONFIG[languageName];
 
-  const languageControlMarkup = `
-    <div class="header-language">
-      <select
-        id="headerLanguageSwitcher"
-        class="header-language-select js_language_switcher"
-        aria-label="${currentLanguage.header.language}"
-      >
-        ${languageOptionsMarkup}
-      </select>
-    </div>
-  `;
+    if (!language) {
+      continue;
+    }
+
+    let selectedAttribute = "";
+
+    if (languageName === activeLanguage) {
+      selectedAttribute = " selected";
+    }
+
+    html += `<option value="${languageName}"${selectedAttribute}>${language.flag} ${language.label}</option>`;
+  }
+
+  return html;
+}
+
+function getHeaderMarkup(selectedLanguages, activeLanguage) {
+  const currentLanguage =
+    LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
+  const languageOptionsMarkup = buildLanguageOptionsMarkup(
+    selectedLanguages,
+    activeLanguage
+  );
 
   return `
     <a href="../html/index.html" class="logo" aria-label="Retour à l'accueil">
@@ -279,7 +324,15 @@ const getHeaderMarkup = (selectedLanguages, activeLanguage) => {
       <span>SaveNest</span>
     </a>
     <nav class="header-nav">
-      ${languageControlMarkup}
+      <div class="header-language">
+        <select
+          id="headerLanguageSwitcher"
+          class="header-language-select js_language_switcher"
+          aria-label="${currentLanguage.header.language}"
+        >
+          ${languageOptionsMarkup}
+        </select>
+      </div>
       <ul>
         <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
         <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
@@ -288,7 +341,7 @@ const getHeaderMarkup = (selectedLanguages, activeLanguage) => {
       </ul>
     </nav>
   `;
-};
+}
 
 const initialLanguages = getStoredUserLanguages();
 
@@ -297,19 +350,38 @@ export const headerMarkup = getHeaderMarkup(
   getActiveLanguage(initialLanguages)
 );
 
+function markLayoutReady() {
+  const bodyEl = document.body;
+
+  if (!bodyEl) {
+    return;
+  }
+
+  const headerEl = document.querySelector(".js_header");
+  const footerEl = document.querySelector(".js_footer");
+  const headerReady = !headerEl || headerEl.dataset.hydrated === "true";
+  const footerReady = !footerEl || footerEl.dataset.hydrated === "true";
+
+  if (headerReady && footerReady) {
+    bodyEl.classList.add("layout-ready");
+  }
+}
+
 function renderHeader(headerEl) {
   const selectedLanguages = getStoredUserLanguages();
   const activeLanguage = getActiveLanguage(selectedLanguages);
+  const activeLanguageConfig =
+    LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
 
   headerEl.innerHTML = getHeaderMarkup(selectedLanguages, activeLanguage);
   headerEl.dataset.hydrated = "true";
   headerEl.dataset.activeLanguage = activeLanguage;
-
-  document.documentElement.lang = LANGUAGE_CONFIG[activeLanguage]?.code || "fr";
+  document.documentElement.lang = activeLanguageConfig.code;
 
   const languageSwitcher = headerEl.querySelector(".js_language_switcher");
+
   if (languageSwitcher) {
-    languageSwitcher.addEventListener("change", (event) => {
+    languageSwitcher.addEventListener("change", function handleLanguageChange(event) {
       localStorage.setItem(ACTIVE_LANGUAGE_STORAGE_KEY, event.target.value);
       renderHeader(headerEl);
     });
@@ -320,15 +392,24 @@ function renderHeader(headerEl) {
 
 export function setHeader() {
   const headerEl = document.querySelector(".js_header");
-  if (!headerEl) return;
+
+  if (!headerEl) {
+    return;
+  }
 
   renderHeader(headerEl);
 }
 
 export function setFooter() {
   const footerEl = document.querySelector(".js_footer");
-  if (!footerEl) return;
-  if (footerEl.dataset.hydrated === "true") return;
+
+  if (!footerEl) {
+    return;
+  }
+
+  if (footerEl.dataset.hydrated === "true") {
+    return;
+  }
 
   if (footerEl.innerHTML.trim() !== footerMarkup.trim()) {
     footerEl.innerHTML = footerMarkup;
@@ -341,19 +422,4 @@ export function setFooter() {
 export function injectLayout() {
   setHeader();
   setFooter();
-}
-
-function markLayoutReady() {
-  const bodyEl = document.body;
-  if (!bodyEl) return;
-
-  const headerEl = document.querySelector(".js_header");
-  const footerEl = document.querySelector(".js_footer");
-
-  const headerReady = !headerEl || headerEl.dataset.hydrated === "true";
-  const footerReady = !footerEl || footerEl.dataset.hydrated === "true";
-
-  if (headerReady && footerReady) {
-    bodyEl.classList.add("layout-ready");
-  }
 }

@@ -33,16 +33,33 @@ const parseOptionalPositiveId = (value) => {
   return { value: parsedId, invalid: false };
 };
 
-const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
+function normalizeText(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
 
-const normalizeMail = (value) => normalizeText(value).toLowerCase();
-const isAdminUser = (user) => user?.role_code === ROLE_CODES.ADMIN;
+  return value.trim();
+}
+
+function normalizeMail(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function isAdminUser(user) {
+  if (!user) {
+    return false;
+  }
+
+  return user.role_code === ROLE_CODES.ADMIN;
+}
+
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
-const isBcryptHash = (value) =>
-  typeof value === "string" && BCRYPT_HASH_PATTERN.test(value);
+function isBcryptHash(value) {
+  return typeof value === "string" && BCRYPT_HASH_PATTERN.test(value);
+}
 
-const verifyStoredPassword = async (rawPassword, storedPassword) => {
+async function verifyStoredPassword(rawPassword, storedPassword) {
   if (typeof storedPassword !== "string" || storedPassword === "") {
     return { isValid: false, needsUpgrade: false };
   }
@@ -60,13 +77,31 @@ const verifyStoredPassword = async (rawPassword, storedPassword) => {
     isValid: isLegacyPlainTextMatch,
     needsUpgrade: isLegacyPlainTextMatch,
   };
-};
+}
 
-const normalizeSpokenLanguages = (value) => {
-  if (!Array.isArray(value)) return [];
+function normalizeSpokenLanguages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
-  return [...new Set(value.map(normalizeText).filter(Boolean))];
-};
+  const normalizedLanguages = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const normalizedLanguage = normalizeText(value[index]);
+
+    if (!normalizedLanguage) {
+      continue;
+    }
+
+    if (normalizedLanguages.includes(normalizedLanguage)) {
+      continue;
+    }
+
+    normalizedLanguages.push(normalizedLanguage);
+  }
+
+  return normalizedLanguages;
+}
 
 const userSelectQuery = `
   SELECT
@@ -122,7 +157,13 @@ const buildPublicUser = async (user) => {
 };
 
 const buildPublicUsers = async (users) => {
-  return Promise.all(users.map(buildPublicUser));
+  const publicUsers = [];
+
+  for (let index = 0; index < users.length; index += 1) {
+    publicUsers.push(await buildPublicUser(users[index]));
+  }
+
+  return publicUsers;
 };
 
 const getJoinedUserById = async (idUser) => {
@@ -250,10 +291,28 @@ const insertSpokenLanguages = async ({
   );
 
   if (rows.length !== normalizedLanguages.length) {
-    const foundNames = new Set(rows.map((row) => row.language_name));
-    const missingLanguages = normalizedLanguages.filter(
-      (languageName) => !foundNames.has(languageName)
-    );
+    const foundNames = [];
+    const missingLanguages = [];
+
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const languageName = rows[rowIndex].language_name;
+
+      if (!foundNames.includes(languageName)) {
+        foundNames.push(languageName);
+      }
+    }
+
+    for (
+      let languageIndex = 0;
+      languageIndex < normalizedLanguages.length;
+      languageIndex += 1
+    ) {
+      const languageName = normalizedLanguages[languageIndex];
+
+      if (!foundNames.includes(languageName)) {
+        missingLanguages.push(languageName);
+      }
+    }
 
     return {
       status: 400,

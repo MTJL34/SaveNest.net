@@ -11,6 +11,7 @@ const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 setHeader();
 setFooter();
 
+// Etat central de la page favoris : listes, catégories ouvertes, ordre local et mode actif.
 let categories = [];
 let favorites = [];
 let selectedEditFavId = "";
@@ -364,7 +365,8 @@ function getStoredAuthUser() {
 }
 
 function getAuthenticatedUserId() {
-  const storedUserId = Number(getStoredAuthUser()?.id_user);
+  const storedUser = getStoredAuthUser();
+  const storedUserId = storedUser ? Number(storedUser.id_user) : NaN;
 
   if (Number.isInteger(storedUserId) && storedUserId > 0) {
     return storedUserId;
@@ -385,7 +387,7 @@ function getAuthenticatedUserId() {
 
     const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
     const decodedPayload = JSON.parse(window.atob(normalizedPayload));
-    const tokenUserId = Number(decodedPayload?.id_user);
+    const tokenUserId = decodedPayload ? Number(decodedPayload.id_user) : NaN;
 
     return Number.isInteger(tokenUserId) && tokenUserId > 0 ? tokenUserId : null;
   } catch (error) {
@@ -416,7 +418,9 @@ async function getCurrentUser() {
 }
 
 function syncDefaultCategoryFromUser(user) {
-  const nextDefaultCategoryId = normalizePositiveId(user?.default_category_id);
+  const nextDefaultCategoryId = user
+    ? normalizePositiveId(user.default_category_id)
+    : "";
 
   defaultCategoryId = nextDefaultCategoryId;
   persistDefaultCategory();
@@ -1719,6 +1723,7 @@ deleteFavBoard.addEventListener("click", async (event) => {
 });
 
 editDragBoard.addEventListener("dragstart", (event) => {
+  // Le drag and drop stocke l'id déplacé, puis la vue est rerendue avec le nouvel ordre.
   const dragHandle = event.target.closest("[data-drag-category]");
   const favoriteHandle = event.target.closest("[data-drag-fav]");
 

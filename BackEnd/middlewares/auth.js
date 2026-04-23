@@ -7,24 +7,47 @@ export const ROLE_CODES = Object.freeze({
   USER: "USER",
 });
 
-const PRIVILEGED_ROLE_CODES = new Set([ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR]);
+const PRIVILEGED_ROLE_CODES = [ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR];
 
-const extractBearerToken = (authorizationHeader) => {
-  if (typeof authorizationHeader !== "string") return null;
+function extractBearerToken(authorizationHeader) {
+  if (typeof authorizationHeader !== "string") {
+    return null;
+  }
 
-  const [scheme, token] = authorizationHeader.split(" ");
-  if (scheme !== "Bearer" || !token) return null;
+  const parts = authorizationHeader.split(" ");
 
-  return token.trim() || null;
-};
+  if (parts.length < 2) {
+    return null;
+  }
 
-const parsePositiveId = (value) => {
+  if (parts[0] !== "Bearer") {
+    return null;
+  }
+
+  if (!parts[1]) {
+    return null;
+  }
+
+  const token = parts[1].trim();
+
+  if (token === "") {
+    return null;
+  }
+
+  return token;
+}
+
+function parsePositiveId(value) {
   const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  return id;
-};
 
-const getAuthUserById = async (idUser) => {
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  return id;
+}
+
+async function getAuthUserById(idUser) {
   const [rows] = await connection.execute(
     `SELECT
       u.id_user,
@@ -39,19 +62,30 @@ const getAuthUserById = async (idUser) => {
     [idUser]
   );
 
-  return rows[0] || null;
-};
+  if (rows.length === 0) {
+    return null;
+  }
 
-export const hasRole = (user, allowedRoleCodes = []) => {
-  if (!user?.role_code) return false;
+  return rows[0];
+}
+
+export function hasRole(user, allowedRoleCodes = []) {
+  if (!user || typeof user !== "object") {
+    return false;
+  }
+
+  if (typeof user.role_code !== "string" || user.role_code === "") {
+    return false;
+  }
+
   return allowedRoleCodes.includes(user.role_code);
-};
+}
 
-export const isPrivilegedUser = (user) => {
-  return PRIVILEGED_ROLE_CODES.has(user?.role_code);
-};
+export function isPrivilegedUser(user) {
+  return hasRole(user, PRIVILEGED_ROLE_CODES);
+}
 
-export const requireAuth = async (req, res, next) => {
+export async function requireAuth(req, res, next) {
   try {
     const token = extractBearerToken(req.headers.authorization);
 
@@ -60,8 +94,9 @@ export const requireAuth = async (req, res, next) => {
     }
 
     const secret = process.env.JWT_SECRET || "dev_secret_change_me";
-    const decoded = jwt.verify(token, secret);
-    const idUser = parsePositiveId(decoded?.id_user);
+    const decodedToken = jwt.verify(token, secret);
+    const decodedUserId = decodedToken ? decodedToken.id_user : null;
+    const idUser = parsePositiveId(decodedUserId);
 
     if (!idUser) {
       return res.status(401).json({ message: "Token invalide." });
@@ -79,10 +114,10 @@ export const requireAuth = async (req, res, next) => {
     console.error("Error in requireAuth:", error);
     return res.status(401).json({ message: "Token invalide ou expiré." });
   }
-};
+}
 
-export const requireRole = (...allowedRoleCodes) => {
-  return (req, res, next) => {
+export function requireRole(...allowedRoleCodes) {
+  return function checkRole(req, res, next) {
     if (!req.authUser) {
       return res.status(401).json({ message: "Authentification requise." });
     }
@@ -93,15 +128,16 @@ export const requireRole = (...allowedRoleCodes) => {
 
     return res.status(403).json({ message: "Accès refusé." });
   };
-};
+}
 
-export const requireSelfOrRole = (resolveTargetUserId, ...allowedRoleCodes) => {
-  return (req, res, next) => {
+export function requireSelfOrRole(resolveTargetUserId, ...allowedRoleCodes) {
+  return function checkSelfOrRole(req, res, next) {
     if (!req.authUser) {
       return res.status(401).json({ message: "Authentification requise." });
     }
 
-    const targetUserId = parsePositiveId(resolveTargetUserId(req));
+    const rawTargetUserId = resolveTargetUserId(req);
+    const targetUserId = parsePositiveId(rawTargetUserId);
 
     if (targetUserId !== null && targetUserId === req.authUser.id_user) {
       return next();
@@ -113,4 +149,4 @@ export const requireSelfOrRole = (resolveTargetUserId, ...allowedRoleCodes) => {
 
     return res.status(403).json({ message: "Accès refusé." });
   };
-};
+}

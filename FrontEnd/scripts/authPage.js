@@ -33,9 +33,13 @@ const authContent = {
   },
 };
 
-const switchButtons = [...document.querySelectorAll(".auth-switch-btn[data-auth-target]")];
-const inlineSwitchButtons = [...document.querySelectorAll(".auth-inline-btn[data-auth-target]")];
-const panels = [...document.querySelectorAll("[data-auth-panel]")];
+const switchButtons = Array.from(
+  document.querySelectorAll(".auth-switch-btn[data-auth-target]")
+);
+const inlineSwitchButtons = Array.from(
+  document.querySelectorAll(".auth-inline-btn[data-auth-target]")
+);
+const panels = Array.from(document.querySelectorAll("[data-auth-panel]"));
 const eyebrowEl = document.querySelector(".js_authEyebrow");
 const titleEl = document.querySelector(".js_authTitle");
 const descriptionEl = document.querySelector(".js_authDescription");
@@ -54,9 +58,9 @@ const languagesSelectEl = document.querySelector(".js_languagesSelect");
 const languagesTriggerEl = document.querySelector(".js_languagesTrigger");
 const languagesTriggerTextEl = document.querySelector(".js_languagesTriggerText");
 const languagesCountEl = document.querySelector(".js_languagesCount");
-const languageCheckboxes = [
-  ...document.querySelectorAll('.signup-form input[name="spoken_languages"]'),
-];
+const languageCheckboxes = Array.from(
+  document.querySelectorAll('.signup-form input[name="spoken_languages"]')
+);
 
 const API_BASE_URL = "http://localhost:3000/api";
 const APP_BASE_URL = new URL("/", API_BASE_URL).href;
@@ -68,7 +72,7 @@ const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 
-const normalizeAuthPageOrigin = () => {
+function normalizeAuthPageOrigin() {
   const destinationUrl = new URL(LOGIN_PAGE_URL);
 
   if (window.location.origin === destinationUrl.origin) {
@@ -77,23 +81,38 @@ const normalizeAuthPageOrigin = () => {
 
   destinationUrl.hash = window.location.hash === "#signup" ? "#signup" : "#login";
   window.location.replace(destinationUrl.href);
-};
+}
 
 normalizeAuthPageOrigin();
 
-const getModeFromHash = () => (window.location.hash === "#signup" ? "signup" : "login");
+function getModeFromHash() {
+  if (window.location.hash === "#signup") {
+    return "signup";
+  }
 
-const updateAside = (mode) => {
+  return "login";
+}
+
+function updateAside(mode) {
   const content = authContent[mode];
-  if (!content) return;
+
+  if (!content) {
+    return;
+  }
 
   eyebrowEl.textContent = content.eyebrow;
   titleEl.textContent = content.title;
   descriptionEl.textContent = content.description;
-  pointsEl.innerHTML = content.points.map((item) => `<li>${item}</li>`).join("");
-};
+  let pointsMarkup = "";
 
-const setActiveMode = (mode, options = {}) => {
+  for (let index = 0; index < content.points.length; index += 1) {
+    pointsMarkup += `<li>${content.points[index]}</li>`;
+  }
+
+  pointsEl.innerHTML = pointsMarkup;
+}
+
+function setActiveMode(mode, options = {}) {
   const { updateHash = true } = options;
   const safeMode = mode === "signup" ? "signup" : "login";
 
@@ -118,24 +137,53 @@ const setActiveMode = (mode, options = {}) => {
   if (updateHash) {
     history.replaceState(null, "", safeMode === "signup" ? "#signup" : "#login");
   }
-};
+}
 
-const getSelectedLanguageInputs = () => {
-  return [...signupForm.querySelectorAll('input[name="spoken_languages"]:checked')];
-};
+function getSelectedLanguageInputs() {
+  return Array.from(
+    signupForm.querySelectorAll('input[name="spoken_languages"]:checked')
+  );
+}
 
-const getSelectedLanguages = () => {
-  return getSelectedLanguageInputs().map((input) => input.value);
-};
+function getSelectedLanguages() {
+  const selectedInputs = getSelectedLanguageInputs();
+  const selectedLanguages = [];
 
-const getSelectedLanguageLabels = () => {
-  return getSelectedLanguageInputs().map((input) => {
-    const languageLabel = input.closest(".language-option")?.querySelector(".language-label");
-    return languageLabel?.textContent?.trim() || input.value;
-  });
-};
+  for (let index = 0; index < selectedInputs.length; index += 1) {
+    selectedLanguages.push(selectedInputs[index].value);
+  }
 
-const formatSelectedLanguagesSummary = () => {
+  return selectedLanguages;
+}
+
+function getSelectedLanguageLabels() {
+  const selectedInputs = getSelectedLanguageInputs();
+  const selectedLabels = [];
+
+  for (let index = 0; index < selectedInputs.length; index += 1) {
+    const input = selectedInputs[index];
+    const option = input.closest(".language-option");
+    let labelText = input.value;
+
+    if (option) {
+      const languageLabel = option.querySelector(".language-label");
+
+      if (languageLabel && typeof languageLabel.textContent === "string") {
+        const trimmedLabel = languageLabel.textContent.trim();
+
+        if (trimmedLabel !== "") {
+          labelText = trimmedLabel;
+        }
+      }
+    }
+
+    selectedLabels.push(labelText);
+  }
+
+  return selectedLabels;
+}
+
+function formatSelectedLanguagesSummary() {
   const selectedLanguageLabels = getSelectedLanguageLabels();
 
   if (selectedLanguageLabels.length === 0) {
@@ -151,26 +199,35 @@ const formatSelectedLanguagesSummary = () => {
   }
 
   return `${selectedLanguageLabels.length} langues sélectionnées`;
-};
+}
 
-const openLanguagesSelect = () => {
-  if (!languagesSelectEl || !languagesTriggerEl) return;
+function openLanguagesSelect() {
+  if (!languagesSelectEl || !languagesTriggerEl) {
+    return;
+  }
 
   languagesSelectEl.classList.add("is-open");
   languagesTriggerEl.setAttribute("aria-expanded", "true");
-};
+}
 
-const closeLanguagesSelect = () => {
-  if (!languagesSelectEl || !languagesTriggerEl) return;
+function closeLanguagesSelect() {
+  if (!languagesSelectEl || !languagesTriggerEl) {
+    return;
+  }
 
   languagesSelectEl.classList.remove("is-open");
   languagesTriggerEl.setAttribute("aria-expanded", "false");
-};
+}
 
-const syncLanguageOptionStates = () => {
-  languageCheckboxes.forEach((checkbox) => {
-    checkbox.closest(".language-option")?.classList.toggle("is-selected", checkbox.checked);
-  });
+function syncLanguageOptionStates() {
+  for (let index = 0; index < languageCheckboxes.length; index += 1) {
+    const checkbox = languageCheckboxes[index];
+    const option = checkbox.closest(".language-option");
+
+    if (option) {
+      option.classList.toggle("is-selected", checkbox.checked);
+    }
+  }
 
   if (languagesTriggerTextEl) {
     languagesTriggerTextEl.textContent = formatSelectedLanguagesSummary();
@@ -182,28 +239,38 @@ const syncLanguageOptionStates = () => {
     languagesCountEl.hidden = selectedLanguagesCount === 0;
   }
 
-  languagesTriggerEl?.classList.toggle("is-placeholder", getSelectedLanguages().length === 0);
-};
+  if (languagesTriggerEl) {
+    languagesTriggerEl.classList.toggle(
+      "is-placeholder",
+      getSelectedLanguages().length === 0
+    );
+  }
+}
 
-const syncLanguageCheckboxesFromStorage = () => {
+function syncLanguageCheckboxesFromStorage() {
   try {
     const raw = localStorage.getItem(USER_LANGUAGES_STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      return;
+    }
 
     const storedLanguages = JSON.parse(raw);
-    if (!Array.isArray(storedLanguages)) return;
+    if (!Array.isArray(storedLanguages)) {
+      return;
+    }
 
-    languageCheckboxes.forEach((checkbox) => {
+    for (let index = 0; index < languageCheckboxes.length; index += 1) {
+      const checkbox = languageCheckboxes[index];
       checkbox.checked = storedLanguages.includes(checkbox.value);
-    });
+    }
   } catch (error) {
     // Rien de bloquant ici.
   }
 
   syncLanguageOptionStates();
-};
+}
 
-const refreshHeaderLanguages = (preferredLanguage = null) => {
+function refreshHeaderLanguages(preferredLanguage = null) {
   const selectedLanguages = getSelectedLanguages();
 
   if (selectedLanguages.length === 0) {
@@ -215,10 +282,12 @@ const refreshHeaderLanguages = (preferredLanguage = null) => {
   setHeader();
 
   return getSelectedLanguageLabels();
-};
+}
 
-const setFeedback = (element, message, type = "") => {
-  if (!element) return;
+function setFeedback(element, message, type = "") {
+  if (!element) {
+    return;
+  }
 
   element.textContent = message;
   element.classList.remove("is-error", "is-success");
@@ -226,15 +295,22 @@ const setFeedback = (element, message, type = "") => {
   if (type) {
     element.classList.add(`is-${type}`);
   }
-};
+}
 
-const setSubmitState = (form, isLoading, defaultLabel, loadingLabel) => {
-  const submitButton = form?.querySelector('button[type="submit"]');
-  if (!submitButton) return;
+function setSubmitState(form, isLoading, defaultLabel, loadingLabel) {
+  if (!form) {
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  if (!submitButton) {
+    return;
+  }
 
   submitButton.disabled = isLoading;
   submitButton.textContent = isLoading ? loadingLabel : defaultLabel;
-};
+}
 
 const parseJsonSafely = async (response) => {
   try {
@@ -262,20 +338,30 @@ const saveAuthSession = ({ token, user }) => {
   }
 };
 
-const getLanguageNamesFromUser = (user) => {
-  if (!Array.isArray(user?.spoken_languages)) return [];
+function getLanguageNamesFromUser(user) {
+  if (!user || !Array.isArray(user.spoken_languages)) {
+    return [];
+  }
 
-  return user.spoken_languages
-    .map((language) => {
-      if (typeof language === "string") return language;
-      if (language && typeof language.language_name === "string") {
-        return language.language_name;
-      }
+  const languageNames = [];
 
-      return null;
-    })
-    .filter(Boolean);
-};
+  for (let index = 0; index < user.spoken_languages.length; index += 1) {
+    const language = user.spoken_languages[index];
+    let languageName = null;
+
+    if (typeof language === "string") {
+      languageName = language;
+    } else if (language && typeof language.language_name === "string") {
+      languageName = language.language_name;
+    }
+
+    if (languageName) {
+      languageNames.push(languageName);
+    }
+  }
+
+  return languageNames;
+}
 
 const getPostLoginRedirectUrl = ({ token, user }) => {
   const destinationUrl = new URL(HOME_PAGE_URL);
@@ -310,7 +396,7 @@ window.addEventListener("hashchange", () => {
 
 if (languagesTriggerEl) {
   languagesTriggerEl.addEventListener("click", () => {
-    if (languagesSelectEl?.classList.contains("is-open")) {
+    if (languagesSelectEl && languagesSelectEl.classList.contains("is-open")) {
       closeLanguagesSelect();
       return;
     }
@@ -358,8 +444,8 @@ if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const identifier = loginIdentifierInput?.value.trim() || "";
-    const password = loginPasswordInput?.value || "";
+    const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim() : "";
+    const password = loginPasswordInput ? loginPasswordInput.value : "";
 
     if (!identifier || !password) {
       setFeedback(
@@ -437,10 +523,12 @@ if (signupForm) {
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const pseudo = signupPseudoInput?.value.trim() || "";
-    const mail = signupEmailInput?.value.trim() || "";
-    const password = signupPasswordInput?.value ?? "";
-    const passwordConfirm = signupPasswordConfirmInput?.value ?? "";
+    const pseudo = signupPseudoInput ? signupPseudoInput.value.trim() : "";
+    const mail = signupEmailInput ? signupEmailInput.value.trim() : "";
+    const password = signupPasswordInput ? signupPasswordInput.value : "";
+    const passwordConfirm = signupPasswordConfirmInput
+      ? signupPasswordConfirmInput.value
+      : "";
     const selectedLanguages = getSelectedLanguages();
 
     if (!pseudo || !mail || !password) {

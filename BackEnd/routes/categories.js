@@ -1,8 +1,4 @@
-import express from 'express';
-const router = express.Router();
-
-// Import the categoriesControllers
-
+import express from "express";
 import {
   getAllCategories,
   createCategory,
@@ -10,27 +6,18 @@ import {
   updateCategory,
   deleteCategory,
   unlockCategory,
-} from '../controllers/categoriesControllers.js';
+} from "../controllers/categoriesControllers.js";
 import { requireAuth } from "../middlewares/auth.js";
+
+const router = express.Router();
 
 router.use(requireAuth);
 
-// Route pour obtenir toutes les catégories
-router.get('/', getAllCategories);
-
-// Route pour obtenir une catégorie par ID
-router.get('/:id', getCategoryById);
-
-// Route pour créer une nouvelle catégorie
-router.post('/', createCategory);
-
-// Route pour déverrouiller une catégorie privée
-router.post('/:id/unlock', unlockCategory);
-
-// Route pour mettre à jour une catégorie
-router.patch('/:id', updateCategory);
-
-// Route pour supprimer une catégorie
-router.delete('/:id', deleteCategory);
+router.get("/", getAllCategories);
+router.get("/:id", getCategoryById);
+router.post("/", createCategory);
+router.post("/:id/unlock", unlockCategory);
+router.patch("/:id", updateCategory);
+router.delete("/:id", deleteCategory);
 
 export default router;

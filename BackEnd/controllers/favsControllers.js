@@ -1,15 +1,27 @@
 import connection from "../config/database.js";
 import { isPrivilegedUser } from "../middlewares/auth.js";
 
-const parsePositiveId = (value) => {
+function parsePositiveId(value) {
   const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  return id;
-};
 
-const canAccessUserOwnedResource = (req, ownerId) => {
-  return isPrivilegedUser(req.authUser) || req.authUser?.id_user === ownerId;
-};
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  return id;
+}
+
+function canAccessUserOwnedResource(req, ownerId) {
+  if (isPrivilegedUser(req.authUser)) {
+    return true;
+  }
+
+  if (!req.authUser) {
+    return false;
+  }
+
+  return req.authUser.id_user === ownerId;
+}
 
 const favSelectQuery = `
   SELECT
@@ -26,63 +38,74 @@ const favSelectQuery = `
   INNER JOIN category c ON c.id_category = f.id_category
 `;
 
-const getRawFavById = async (id) => {
+async function getRawFavById(id) {
   const [rows] = await connection.execute(
     "SELECT id_favs, title_favs, url_favs, added_date, logo, id_category FROM favs WHERE id_favs = ?",
     [id]
   );
 
-  return rows[0] || null;
-};
+  if (rows.length === 0) {
+    return null;
+  }
 
-const getCategoryRowById = async (idCategory) => {
+  return rows[0];
+}
+
+async function getCategoryRowById(idCategory) {
   const [rows] = await connection.execute(
     "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_category = ?",
     [idCategory]
   );
 
-  return rows[0] || null;
-};
+  if (rows.length === 0) {
+    return null;
+  }
 
-const getJoinedFavById = async (id, authUser) => {
-  const isPrivileged = isPrivilegedUser(authUser);
-  const query = isPrivileged
-    ? `${favSelectQuery}
-    WHERE f.id_favs = ?`
-    : `${favSelectQuery}
+  return rows[0];
+}
+
+async function getJoinedFavById(id, authUser) {
+  let query = `${favSelectQuery}
     WHERE f.id_favs = ? AND c.id_user = ?`;
-  const values = isPrivileged ? [id] : [id, authUser.id_user];
-  const [rows] = await connection.execute(
-    query,
-    values
-  );
+  let values = [id, authUser.id_user];
 
-  return rows[0] || null;
-};
+  if (isPrivilegedUser(authUser)) {
+    query = `${favSelectQuery}
+    WHERE f.id_favs = ?`;
+    values = [id];
+  }
 
-export const getAllFavs = async (req, res) => {
+  const [rows] = await connection.execute(query, values);
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return rows[0];
+}
+
+export async function getAllFavs(req, res) {
   try {
-    const isPrivileged = isPrivilegedUser(req.authUser);
-    const query = isPrivileged
-      ? `${favSelectQuery}
-      ORDER BY f.id_favs ASC`
-      : `${favSelectQuery}
+    let query = `${favSelectQuery}
       WHERE c.id_user = ?
       ORDER BY f.id_favs ASC`;
-    const values = isPrivileged ? [] : [req.authUser.id_user];
-    const [rows] = await connection.execute(
-      query,
-      values
-    );
+    let values = [req.authUser.id_user];
 
+    if (isPrivilegedUser(req.authUser)) {
+      query = `${favSelectQuery}
+      ORDER BY f.id_favs ASC`;
+      values = [];
+    }
+
+    const [rows] = await connection.execute(query, values);
     return res.status(200).json(rows);
   } catch (error) {
     console.error("Error in getAllFavs:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
-};
+}
 
-export const getFavById = async (req, res) => {
+export async function getFavById(req, res) {
   try {
     const id = parsePositiveId(req.params.id);
 
@@ -101,31 +124,26 @@ export const getFavById = async (req, res) => {
     console.error("Error in getFavById:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
-};
+}
 
-export const createFav = async (req, res) => {
+export async function createFav(req, res) {
   try {
-    const {
-      title_favs,
-      url_favs = null,
-      added_date = null,
-      logo = null,
-      id_category,
-    } = req.body;
-    const trimmedTitle = typeof title_favs === "string" ? title_favs.trim() : "";
-    const trimmedUrl = typeof url_favs === "string" ? url_favs.trim() : null;
-    const trimmedLogo = typeof logo === "string" ? logo.trim() : null;
-    const parsedCategoryId = parsePositiveId(id_category);
+    const body = req.body;
+    const title = typeof body.title_favs === "string" ? body.title_favs.trim() : "";
+    const url = typeof body.url_favs === "string" ? body.url_favs.trim() : null;
+    const logo = typeof body.logo === "string" ? body.logo.trim() : null;
+    const addedDate = body.added_date || null;
+    const categoryId = parsePositiveId(body.id_category);
 
-    if (!trimmedTitle) {
+    if (!title) {
       return res.status(400).json({ message: "title_favs est obligatoire." });
     }
 
-    if (!parsedCategoryId) {
+    if (!categoryId) {
       return res.status(400).json({ message: "id_category est obligatoire et doit être valide." });
     }
 
-    const targetCategory = await getCategoryRowById(parsedCategoryId);
+    const targetCategory = await getCategoryRowById(categoryId);
 
     if (!targetCategory) {
       return res.status(404).json({ message: "Catégorie introuvable." });
@@ -137,12 +155,14 @@ export const createFav = async (req, res) => {
 
     const [result] = await connection.execute(
       "INSERT INTO favs (title_favs, url_favs, added_date, logo, id_category) VALUES (?, ?, ?, ?, ?)",
-      [trimmedTitle, trimmedUrl || null, added_date || null, trimmedLogo || null, parsedCategoryId]
+      [title, url || null, addedDate, logo || null, categoryId]
     );
 
-    const newFav =
-      (await getJoinedFavById(result.insertId, req.authUser)) ||
-      (await getRawFavById(result.insertId));
+    let newFav = await getJoinedFavById(result.insertId, req.authUser);
+
+    if (!newFav) {
+      newFav = await getRawFavById(result.insertId);
+    }
 
     return res.status(201).json({
       message: "Favori créé avec succès.",
@@ -152,12 +172,11 @@ export const createFav = async (req, res) => {
     console.error("Error in createFav:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
-};
+}
 
-export const updateFav = async (req, res) => {
+export async function updateFav(req, res) {
   try {
     const id = parsePositiveId(req.params.id);
-    const { title_favs, url_favs, added_date, logo, id_category } = req.body;
 
     if (!id) {
       return res.status(400).json({ message: "ID de favori invalide." });
@@ -169,12 +188,29 @@ export const updateFav = async (req, res) => {
       return res.status(404).json({ message: "Favori introuvable." });
     }
 
-    const nextTitle = title_favs === undefined ? currentFav.title_favs : String(title_favs).trim();
-    const nextUrl = url_favs === undefined ? currentFav.url_favs : (typeof url_favs === "string" ? url_favs.trim() : null);
-    const nextDate = added_date === undefined ? currentFav.added_date : added_date;
-    const nextLogo = logo === undefined ? currentFav.logo : (typeof logo === "string" ? logo.trim() : null);
+    const body = req.body;
+    const nextTitle =
+      body.title_favs === undefined
+        ? currentFav.title_favs
+        : String(body.title_favs).trim();
+    const nextUrl =
+      body.url_favs === undefined
+        ? currentFav.url_favs
+        : typeof body.url_favs === "string"
+          ? body.url_favs.trim()
+          : null;
+    const nextDate =
+      body.added_date === undefined ? currentFav.added_date : body.added_date;
+    const nextLogo =
+      body.logo === undefined
+        ? currentFav.logo
+        : typeof body.logo === "string"
+          ? body.logo.trim()
+          : null;
     const nextCategoryId =
-      id_category === undefined ? currentFav.id_category : parsePositiveId(id_category);
+      body.id_category === undefined
+        ? currentFav.id_category
+        : parsePositiveId(body.id_category);
 
     if (!nextTitle) {
       return res.status(400).json({ message: "title_favs ne peut pas être vide." });
@@ -209,9 +245,9 @@ export const updateFav = async (req, res) => {
     console.error("Error in updateFav:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
-};
+}
 
-export const deleteFav = async (req, res) => {
+export async function deleteFav(req, res) {
   try {
     const id = parsePositiveId(req.params.id);
 
@@ -225,11 +261,11 @@ export const deleteFav = async (req, res) => {
       return res.status(404).json({ message: "Favori introuvable." });
     }
 
-    const [result] = await connection.execute("DELETE FROM favs WHERE id_favs = ?", [id]);
+    await connection.execute("DELETE FROM favs WHERE id_favs = ?", [id]);
 
     return res.status(200).json({ message: "Favori supprimé avec succès." });
   } catch (error) {
     console.error("Error in deleteFav:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
-};
+}

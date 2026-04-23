@@ -9,6 +9,7 @@ const mainEl = document.querySelector(".js_main");
 setHeader();
 setFooter();
 
+// Etat principal de la page catégories : mode courant, sélection et chargement.
 const categories = [];
 let currentMode = "view";
 let editingCategoryId = null;
@@ -67,7 +68,9 @@ async function fetchWithAuth(path, options = {}) {
 function loadDefaultCategory() {
   try {
     const storedUser = getStoredAuthUser();
-    const storedUserDefaultCategory = normalizePositiveId(storedUser?.default_category_id);
+    const storedUserDefaultCategory = storedUser
+      ? normalizePositiveId(storedUser.default_category_id)
+      : "";
 
     if (storedUserDefaultCategory) {
       return storedUserDefaultCategory;
@@ -121,7 +124,8 @@ function getStoredAuthUser() {
 }
 
 function getAuthenticatedUserId() {
-  const storedUserId = Number(getStoredAuthUser()?.id_user);
+  const storedUser = getStoredAuthUser();
+  const storedUserId = storedUser ? Number(storedUser.id_user) : NaN;
 
   if (Number.isInteger(storedUserId) && storedUserId > 0) {
     return storedUserId;
@@ -142,7 +146,7 @@ function getAuthenticatedUserId() {
 
     const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
     const decodedPayload = JSON.parse(window.atob(normalizedPayload));
-    const tokenUserId = Number(decodedPayload?.id_user);
+    const tokenUserId = decodedPayload ? Number(decodedPayload.id_user) : NaN;
 
     return Number.isInteger(tokenUserId) && tokenUserId > 0 ? tokenUserId : null;
   } catch (error) {
@@ -544,6 +548,7 @@ function renderEditPanel() {
 }
 
 function renderPage() {
+  // La page se rerend entièrement après chaque action pour garder une logique simple.
   const totalCount = categories.length;
   const privateCount = categories.filter(
     (item) => normalizeConfidentiality(item.confidentiality) === "Private"
@@ -799,7 +804,7 @@ function setupFormEvents() {
         defaultCategoryId = nextDefaultCategoryId;
         persistDefaultCategory();
 
-        if (data?.user) {
+        if (data && data.user) {
           localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user));
         }
 
