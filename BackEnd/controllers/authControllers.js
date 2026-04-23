@@ -11,10 +11,57 @@ const parsePositiveId = (value) => {
   return id;
 };
 
+const parseOptionalPositiveId = (value) => {
+  if (value === undefined) {
+    return { value: undefined, invalid: false };
+  }
+
+  if (value === null) {
+    return { value: null, invalid: false };
+  }
+
+  if (typeof value === "string" && value.trim() === "") {
+    return { value: null, invalid: false };
+  }
+
+  const parsedId = parsePositiveId(value);
+
+  if (!parsedId) {
+    return { value: null, invalid: true };
+  }
+
+  return { value: parsedId, invalid: false };
+};
+
 const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
 
 const normalizeMail = (value) => normalizeText(value).toLowerCase();
 const isAdminUser = (user) => user?.role_code === ROLE_CODES.ADMIN;
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+const isBcryptHash = (value) =>
+  typeof value === "string" && BCRYPT_HASH_PATTERN.test(value);
+
+const verifyStoredPassword = async (rawPassword, storedPassword) => {
+  if (typeof storedPassword !== "string" || storedPassword === "") {
+    return { isValid: false, needsUpgrade: false };
+  }
+
+  if (isBcryptHash(storedPassword)) {
+    return {
+      isValid: await bcrypt.compare(rawPassword, storedPassword),
+      needsUpgrade: false,
+    };
+  }
+
+  const isLegacyPlainTextMatch = rawPassword === storedPassword;
+
+  return {
+    isValid: isLegacyPlainTextMatch,
+    needsUpgrade: isLegacyPlainTextMatch,
+  };
+};
+
 const normalizeSpokenLanguages = (value) => {
   if (!Array.isArray(value)) return [];
 
@@ -26,6 +73,7 @@ const userSelectQuery = `
     u.id_user,
     u.pseudo,
     u.mail,
+    u.default_category_id,
     u.id_savenest,
     s.date_inscription,
     u.id_role,
@@ -40,6 +88,7 @@ const sanitizeUser = (user) => ({
   id_user: user.id_user,
   pseudo: user.pseudo,
   mail: user.mail,
+  default_category_id: user.default_category_id,
   id_savenest: user.id_savenest,
   date_inscription: user.date_inscription,
   id_role: user.id_role,
@@ -88,11 +137,42 @@ const getJoinedUserById = async (idUser) => {
 
 const getRawUserById = async (idUser) => {
   const [rows] = await connection.execute(
-    "SELECT id_user, pseudo, mail, password, id_savenest, id_role FROM user_ WHERE id_user = ?",
+    "SELECT id_user, pseudo, mail, password, id_savenest, id_role, default_category_id FROM user_ WHERE id_user = ?",
     [idUser]
   );
 
   return rows[0] || null;
+};
+
+const ensureDefaultCategoryOwnedByUser = async ({
+  idUser,
+  defaultCategoryId,
+  executor = connection,
+}) => {
+  if (defaultCategoryId === null || defaultCategoryId === undefined) {
+    return null;
+  }
+
+  const [rows] = await executor.execute(
+    "SELECT id_category, id_user FROM category WHERE id_category = ? LIMIT 1",
+    [defaultCategoryId]
+  );
+
+  if (rows.length === 0) {
+    return {
+      status: 404,
+      message: "Catégorie par défaut introuvable.",
+    };
+  }
+
+  if (Number(rows[0].id_user) !== Number(idUser)) {
+    return {
+      status: 403,
+      message: "Vous ne pouvez pas définir comme catégorie par défaut une catégorie qui ne vous appartient pas.",
+    };
+  }
+
+  return null;
 };
 
 const ensureForeignKeysExist = async (
@@ -368,6 +448,16 @@ export const updateUser = async (req, res) => {
         : parsePositiveId(req.body.id_savenest);
     const nextRole =
       req.body.id_role === undefined ? existingUser.id_role : parsePositiveId(req.body.id_role);
+    const hasProvidedDefaultCategory = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "default_category_id"
+    );
+    const parsedDefaultCategory = parseOptionalPositiveId(
+      hasProvidedDefaultCategory
+        ? req.body.default_category_id
+        : existingUser.default_category_id
+    );
+    const nextDefaultCategory = parsedDefaultCategory.value;
 
     if (!nextPseudo || !nextMail) {
       return res.status(400).json({ message: "pseudo et mail ne peuvent pas être vides." });
@@ -379,6 +469,12 @@ export const updateUser = async (req, res) => {
 
     if (!nextRole) {
       return res.status(400).json({ message: "id_role doit être un entier valide." });
+    }
+
+    if (hasProvidedDefaultCategory && parsedDefaultCategory.invalid) {
+      return res.status(400).json({
+        message: "default_category_id doit être un entier valide ou null.",
+      });
     }
 
     if (!isAdminUser(req.authUser) && nextRole !== existingUser.id_role) {
@@ -400,6 +496,17 @@ export const updateUser = async (req, res) => {
       return res.status(404).json(foreignKeyError);
     }
 
+    const defaultCategoryError = await ensureDefaultCategoryOwnedByUser({
+      idUser,
+      defaultCategoryId: nextDefaultCategory,
+    });
+
+    if (defaultCategoryError) {
+      return res.status(defaultCategoryError.status).json({
+        message: defaultCategoryError.message,
+      });
+    }
+
     const conflictingUser = await findConflictingUser({
       pseudo: nextPseudo,
       mail: nextMail,
@@ -418,8 +525,8 @@ export const updateUser = async (req, res) => {
       nextPasswordRaw === null ? existingUser.password : await bcrypt.hash(nextPasswordRaw, 10);
 
     await connection.execute(
-      "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_role = ? WHERE id_user = ?",
-      [nextPseudo, nextMail, nextPassword, nextSaveNest, nextRole, idUser]
+      "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_role = ?, default_category_id = ? WHERE id_user = ?",
+      [nextPseudo, nextMail, nextPassword, nextSaveNest, nextRole, nextDefaultCategory, idUser]
     );
 
     const updatedUser = await getJoinedUserById(idUser);
@@ -488,10 +595,19 @@ export const loginUser = async (req, res) => {
     }
 
     const user = rows[0];
-    const isValidPassword = await bcrypt.compare(rawPassword, user.password);
+    const passwordCheck = await verifyStoredPassword(rawPassword, user.password);
 
-    if (!isValidPassword) {
+    if (!passwordCheck.isValid) {
       return res.status(401).json({ message: "Identifiants invalides." });
+    }
+
+    if (passwordCheck.needsUpgrade) {
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+      await connection.execute(
+        "UPDATE user_ SET password = ? WHERE id_user = ?",
+        [hashedPassword, user.id_user]
+      );
     }
 
     const fullUser = await getJoinedUserById(user.id_user);

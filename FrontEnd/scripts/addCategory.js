@@ -2,6 +2,8 @@ import { setHeader, setFooter } from "../scripts/layout.js";
 
 const API_BASE_URL = "http://localhost:3000/api";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
+const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
+const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 const mainEl = document.querySelector(".js_main");
 
 setHeader();
@@ -15,6 +17,7 @@ let actionMessage = "";
 let actionMessageType = "";
 let isLoading = true;
 let isDeletingSelection = false;
+let defaultCategoryId = loadDefaultCategory();
 
 function getAuthToken() {
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
@@ -59,6 +62,103 @@ async function fetchWithAuth(path, options = {}) {
   }
 
   return data;
+}
+
+function loadDefaultCategory() {
+  try {
+    const storedUser = getStoredAuthUser();
+    const storedUserDefaultCategory = normalizePositiveId(storedUser?.default_category_id);
+
+    if (storedUserDefaultCategory) {
+      return storedUserDefaultCategory;
+    }
+
+    return String(localStorage.getItem(DEFAULT_CATEGORY_STORAGE_KEY) || "");
+  } catch (error) {
+    return "";
+  }
+}
+
+function persistDefaultCategory() {
+  syncStoredAuthUserDefaultCategory(defaultCategoryId);
+
+  if (defaultCategoryId) {
+    localStorage.setItem(DEFAULT_CATEGORY_STORAGE_KEY, String(defaultCategoryId));
+    return;
+  }
+
+  localStorage.removeItem(DEFAULT_CATEGORY_STORAGE_KEY);
+}
+
+function normalizePositiveId(value) {
+  const parsedId = Number(value);
+
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    return "";
+  }
+
+  return String(parsedId);
+}
+
+function getStoredAuthUser() {
+  try {
+    const rawUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+
+    if (!rawUser) {
+      return null;
+    }
+
+    const parsedUser = JSON.parse(rawUser);
+
+    if (!parsedUser || typeof parsedUser !== "object") {
+      return null;
+    }
+
+    return parsedUser;
+  } catch (error) {
+    return null;
+  }
+}
+
+function getAuthenticatedUserId() {
+  const storedUserId = Number(getStoredAuthUser()?.id_user);
+
+  if (Number.isInteger(storedUserId) && storedUserId > 0) {
+    return storedUserId;
+  }
+
+  try {
+    const token = getAuthToken();
+
+    if (!token) {
+      return null;
+    }
+
+    const [, payload] = token.split(".");
+
+    if (!payload) {
+      return null;
+    }
+
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decodedPayload = JSON.parse(window.atob(normalizedPayload));
+    const tokenUserId = Number(decodedPayload?.id_user);
+
+    return Number.isInteger(tokenUserId) && tokenUserId > 0 ? tokenUserId : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function syncStoredAuthUserDefaultCategory(categoryId) {
+  const storedUser = getStoredAuthUser();
+
+  if (!storedUser) {
+    return;
+  }
+
+  storedUser.default_category_id = categoryId ? Number(categoryId) : null;
+  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(storedUser));
 }
 
 function normalizeConfidentiality(value) {
@@ -116,6 +216,26 @@ function getSelectedCategories() {
   return categories.filter((item) =>
     selectedCategoryIds.has(String(item.id_category))
   );
+}
+
+function getDefaultCategory() {
+  return (
+    categories.find(
+      (item) => String(item.id_category) === String(defaultCategoryId)
+    ) || null
+  );
+}
+
+function syncDefaultCategoryState() {
+  if (
+    !defaultCategoryId ||
+    categories.some((item) => String(item.id_category) === String(defaultCategoryId))
+  ) {
+    return;
+  }
+
+  defaultCategoryId = "";
+  persistDefaultCategory();
 }
 
 function resolveCategorySecurity({
@@ -182,6 +302,7 @@ function renderCards() {
     .map((item) => {
       const mode = normalizeConfidentiality(item.confidentiality);
       const isPrivate = mode === "Private";
+      const isDefaultCategory = String(item.id_category) === String(defaultCategoryId);
       const isEditSelected =
         currentMode === "edit" &&
         String(item.id_category) === String(editingCategoryId);
@@ -193,7 +314,7 @@ function renderCards() {
 
       return `
         <article
-          class="category-card ${isPrivate ? "is-private" : "is-public"} ${interactiveClass} ${isSelected ? "is-selected" : ""}"
+          class="category-card ${isPrivate ? "is-private" : "is-public"} ${interactiveClass} ${isSelected ? "is-selected" : ""} ${isDefaultCategory ? "is-default" : ""}"
           data-category-id="${item.id_category}"
         >
           ${
@@ -203,8 +324,21 @@ function renderCards() {
           }
           ${isPrivate ? '<span class="lock-emoji" title="Catégorie protégée" aria-label="Catégorie protégée">🔒</span>' : ""}
           <div class="category-top">
-            <p class="category-id">#${item.id_category}</p>
-            <span class="badge">${isPrivate ? "Privée" : "Publique"}</span>
+            <div class="category-badges">
+              ${isDefaultCategory ? '<span class="default-badge">Par défaut</span>' : ""}
+              <span class="badge">${isPrivate ? "Privée" : "Publique"}</span>
+            </div>
+            ${
+              currentMode === "view"
+                ? `<button
+                    type="button"
+                    class="default-category-button ${isDefaultCategory ? "is-active" : ""}"
+                    data-default-category="${item.id_category}"
+                  >
+                    ${isDefaultCategory ? "Retirer" : "Par défaut"}
+                  </button>`
+                : ""
+            }
           </div>
           <h3>${item.category_name}</h3>
           <p class="category-meta">
@@ -274,6 +408,88 @@ function buildDeleteConfirmationMessage(selectedItems) {
   } : ${previewNames.join(", ")}${suffix} ?`;
 }
 
+function getEditPasswordConfig(selectedCategory, targetConfidentiality) {
+  const currentConfidentiality = normalizeConfidentiality(
+    selectedCategory.confidentiality
+  );
+  const nextConfidentiality = normalizeConfidentiality(targetConfidentiality);
+  const isCurrentlyPrivate = currentConfidentiality === "Private";
+  const isNextPrivate = nextConfidentiality === "Private";
+
+  if (isCurrentlyPrivate && isNextPrivate) {
+    return {
+      label: "Mot de passe actuel",
+      placeholder: "Saisissez le mot de passe actuel pour confirmer",
+      help: "Cette catégorie est privée. Saisissez son mot de passe actuel avant d'enregistrer.",
+      required: true,
+    };
+  }
+
+  if (isCurrentlyPrivate && !isNextPrivate) {
+    return {
+      label: "Mot de passe actuel",
+      placeholder: "Saisissez le mot de passe actuel pour la rendre publique",
+      help: "Pour rendre cette catégorie publique, confirmez avec son mot de passe actuel.",
+      required: true,
+    };
+  }
+
+  if (!isCurrentlyPrivate && isNextPrivate) {
+    return {
+      label: "Mot de passe",
+      placeholder: "Choisissez un mot de passe pour protéger la catégorie",
+      help: "Ajoutez un mot de passe pour rendre cette catégorie privée.",
+      required: true,
+    };
+  }
+
+  return {
+    label: "Mot de passe",
+    placeholder: "Laissez vide si la catégorie reste publique",
+    help: "Aucun mot de passe n'est nécessaire tant que la catégorie reste publique.",
+    required: false,
+  };
+}
+
+function resolveEditCategorySecurity({
+  selectedCategory,
+  confidentiality,
+  password,
+  messageEl,
+  privacySelect,
+}) {
+  const currentConfidentiality = normalizeConfidentiality(
+    selectedCategory.confidentiality
+  );
+  const nextConfidentiality = normalizeConfidentiality(confidentiality);
+  const trimmedPassword = String(password || "").trim();
+
+  if (currentConfidentiality === "Private") {
+    if (!trimmedPassword) {
+      setInlineMessage(
+        messageEl,
+        nextConfidentiality === "Public"
+          ? "Saisissez le mot de passe actuel de la catégorie pour la rendre publique."
+          : "Saisissez le mot de passe actuel de la catégorie pour confirmer la modification.",
+        "error"
+      );
+      return null;
+    }
+
+    return {
+      confidentiality: nextConfidentiality,
+      password: trimmedPassword,
+    };
+  }
+
+  return resolveCategorySecurity({
+    confidentiality: nextConfidentiality,
+    password: trimmedPassword,
+    messageEl,
+    privacySelect,
+  });
+}
+
 function renderEditPanel() {
   if (currentMode !== "edit" || !editingCategoryId) {
     return "";
@@ -288,10 +504,14 @@ function renderEditPanel() {
   }
 
   const confidentiality = normalizeConfidentiality(selectedCategory.confidentiality);
+  const editPasswordConfig = getEditPasswordConfig(
+    selectedCategory,
+    confidentiality
+  );
 
   return `
     <section class="inline-edit panel">
-      <h2>Modifier la catégorie #${selectedCategory.id_category}</h2>
+      <h2>Modifier la catégorie</h2>
       <form id="inlineEditForm" class="category-form">
         <label for="inlineEditName">Nom</label>
         <input id="inlineEditName" type="text" value="${selectedCategory.category_name}" required />
@@ -302,16 +522,16 @@ function renderEditPanel() {
           <option value="Private" ${confidentiality === "Private" ? "selected" : ""}>Privée</option>
         </select>
 
-        <label for="inlineEditPassword">Mot de passe (si privée)</label>
+        <label id="inlineEditPasswordLabel" for="inlineEditPassword">${editPasswordConfig.label}</label>
         <input
           id="inlineEditPassword"
           type="password"
           value=""
-          placeholder="Ressaisissez le mot de passe si la catégorie reste privée"
-          ${confidentiality === "Private" ? "required" : ""}
+          placeholder="${editPasswordConfig.placeholder}"
+          ${editPasswordConfig.required ? "required" : ""}
         />
 
-        <p class="form-message">Pour une catégorie privée déjà créée, ressaisissez le mot de passe avant d'enregistrer.</p>
+        <p id="inlineEditPasswordHelp" class="form-message">${editPasswordConfig.help}</p>
 
         <div class="inline-edit-actions">
           <button type="submit" class="btn-primary">Enregistrer</button>
@@ -329,12 +549,13 @@ function renderPage() {
     (item) => normalizeConfidentiality(item.confidentiality) === "Private"
   ).length;
   const publicCount = totalCount - privateCount;
+  const defaultCategory = getDefaultCategory();
   const helperText =
     currentMode === "edit"
       ? "Mode modification actif: clique sur une catégorie pour l'éditer."
       : currentMode === "delete"
         ? "Mode suppression actif: clique sur plusieurs catégories pour les sélectionner, puis supprime la sélection."
-        : "Choisis une action puis clique sur une catégorie.";
+        : "Choisis une action ou définis une catégorie par défaut.";
 
   mainEl.innerHTML = `
     <section class="hero">
@@ -383,6 +604,14 @@ function renderPage() {
           ${renderCards()}
         </div>
 
+        <p class="default-category-summary">
+          ${
+            defaultCategory
+              ? `Catégorie par défaut : ${defaultCategory.category_name}. Les favoris sans catégorie iront ici.`
+              : "Aucune catégorie par défaut pour le moment."
+          }
+        </p>
+
         <div class="category-actions">
           <button id="enterEditMode" class="${getActionButtonClass("edit")}">Modifier</button>
           <button id="enterDeleteMode" class="${getActionButtonClass("delete")}">Supprimer</button>
@@ -411,6 +640,7 @@ async function loadCategories(message = "", type = "") {
     categories.length = 0;
     categories.push(...(Array.isArray(data) ? data : []));
     syncDeleteSelection();
+    syncDefaultCategoryState();
 
     if (
       editingCategoryId &&
@@ -535,6 +765,58 @@ function setupFormEvents() {
   cardsGrid.addEventListener("click", async (event) => {
     if (isLoading || isDeletingSelection) return;
 
+    const defaultCategoryButton = event.target.closest("[data-default-category]");
+
+    if (defaultCategoryButton) {
+      const authUserId = getAuthenticatedUserId();
+      const selectedId = String(defaultCategoryButton.dataset.defaultCategory || "");
+      const selectedCategory = categories.find(
+        (item) => String(item.id_category) === selectedId
+      );
+      const nextDefaultCategoryId =
+        String(defaultCategoryId) === selectedId ? "" : selectedId;
+
+      if (!selectedCategory) return;
+
+      if (!authUserId) {
+        redirectToLogin();
+        return;
+      }
+
+      try {
+        const data = await fetchWithAuth(`/auth/${authUserId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            default_category_id: nextDefaultCategoryId
+              ? Number(nextDefaultCategoryId)
+              : null,
+          }),
+        });
+
+        defaultCategoryId = nextDefaultCategoryId;
+        persistDefaultCategory();
+
+        if (data?.user) {
+          localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user));
+        }
+
+        actionMessage = defaultCategoryId
+          ? `"${selectedCategory.category_name}" est maintenant la catégorie par défaut.`
+          : "Catégorie par défaut retirée.";
+        actionMessageType = "success";
+      } catch (error) {
+        actionMessage =
+          error.message || "Impossible d'enregistrer la catégorie par défaut.";
+        actionMessageType = "error";
+      }
+
+      renderPage();
+      return;
+    }
+
     const cardEl = event.target.closest(".category-card");
     if (!cardEl || currentMode === "view") return;
 
@@ -640,17 +922,38 @@ function setupFormEvents() {
   if (inlineEditForm) {
     const inlineEditPrivacy = document.getElementById("inlineEditPrivacy");
     const inlineEditPassword = document.getElementById("inlineEditPassword");
+    const inlineEditPasswordLabel = document.getElementById("inlineEditPasswordLabel");
+    const inlineEditPasswordHelp = document.getElementById("inlineEditPasswordHelp");
     const inlineEditName = document.getElementById("inlineEditName");
     const inlineEditMessage = document.getElementById("inlineEditMessage");
 
-    inlineEditPrivacy.addEventListener("change", () => {
-      if (inlineEditPrivacy.value === "Private") {
+    const syncInlineEditPasswordUi = () => {
+      const selectedCategory = categories.find(
+        (item) => String(item.id_category) === String(editingCategoryId)
+      );
+
+      if (!selectedCategory) return;
+
+      const config = getEditPasswordConfig(selectedCategory, inlineEditPrivacy.value);
+      const isCurrentlyPrivate =
+        normalizeConfidentiality(selectedCategory.confidentiality) === "Private";
+
+      inlineEditPasswordLabel.textContent = config.label;
+      inlineEditPassword.placeholder = config.placeholder;
+      inlineEditPasswordHelp.textContent = config.help;
+
+      if (config.required) {
         inlineEditPassword.setAttribute("required", "required");
       } else {
         inlineEditPassword.removeAttribute("required");
-        inlineEditPassword.value = "";
+        if (!isCurrentlyPrivate) {
+          inlineEditPassword.value = "";
+        }
       }
-    });
+    };
+
+    syncInlineEditPasswordUi();
+    inlineEditPrivacy.addEventListener("change", syncInlineEditPasswordUi);
 
     inlineEditForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -674,7 +977,8 @@ function setupFormEvents() {
         return;
       }
 
-      const security = resolveCategorySecurity({
+      const security = resolveEditCategorySecurity({
+        selectedCategory,
         confidentiality,
         password,
         messageEl: inlineEditMessage,
@@ -694,7 +998,7 @@ function setupFormEvents() {
           body: JSON.stringify({
             category_name: name,
             confidentiality: toApiConfidentiality(security.confidentiality),
-            password: security.confidentiality === "Private" ? security.password : null,
+            password: security.password || null,
           }),
         });
 

@@ -138,9 +138,9 @@ INSERT INTO `savenest` (`id_savenest`, `date_inscription`) VALUES
 (3, '2026-02-20 14:08:47');
 
 INSERT INTO `user_` (`id_user`, `pseudo`, `mail`, `password`, `id_savenest`, `id_role`) VALUES
-(1, 'Neo', 'neo@savenest.test', '$2b$10$FAKEHASHneo', 1, 2),
-(2, 'Trinity', 'trinity@savenest.test', '$2b$10$FAKEHASHtrinity', 2, 2),
-(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$FAKEHASHmorpheus', 3, 1);
+(1, 'Neo', 'neo@savenest.test', '$2b$10$uWMn2/qzNcOeHLD3fFV1CeNEuyx.mc/r0gt7zrdBihizIawvUYhdO', 1, 2),
+(2, 'Trinity', 'trinity@savenest.test', '$2b$10$p0Ntcti9sdnsMVuzx.BU..K0sO/YBg2NMzCf1c5g7VRiR2RU/FQA6', 2, 2),
+(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$twEypXVASciOVr48vCydDOCygCxrLEmHad.lVWeJDU5BH15W/bTla', 3, 1);
 
 INSERT INTO `category` (`id_category`, `category_name`, `confidentiality`, `password`, `id_user`) VALUES
 (1, 'Streaming', 0, NULL, 1),

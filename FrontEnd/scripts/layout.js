@@ -1,5 +1,10 @@
 export const USER_LANGUAGES_STORAGE_KEY = "savenest_user_languages";
 export const ACTIVE_LANGUAGE_STORAGE_KEY = "savenest_active_language";
+const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
+const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
+const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
+const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
+const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
 
 // Petit dictionnaire de traduction pour le header.
 const LANGUAGE_CONFIG = {
@@ -9,6 +14,7 @@ const LANGUAGE_CONFIG = {
     flag: "🇫🇷",
     header: {
       home: "Accueil",
+      favorites: "Favoris",
       categories: "Catégories",
       about: "À propos",
       login: "Connexion",
@@ -21,6 +27,7 @@ const LANGUAGE_CONFIG = {
     flag: "🇬🇧",
     header: {
       home: "Home",
+      favorites: "Favorites",
       categories: "Categories",
       about: "About",
       login: "Login",
@@ -33,6 +40,7 @@ const LANGUAGE_CONFIG = {
     flag: "🇪🇸",
     header: {
       home: "Inicio",
+      favorites: "Favoritos",
       categories: "Categorías",
       about: "Acerca de",
       login: "Conexión",
@@ -45,6 +53,7 @@ const LANGUAGE_CONFIG = {
     flag: "🇩🇪",
     header: {
       home: "Startseite",
+      favorites: "Favoriten",
       categories: "Kategorien",
       about: "Über uns",
       login: "Anmeldung",
@@ -57,6 +66,7 @@ const LANGUAGE_CONFIG = {
     flag: "🇯🇵",
     header: {
       home: "ホーム",
+      favorites: "お気に入り",
       categories: "カテゴリ",
       about: "概要",
       login: "ログイン",
@@ -95,6 +105,14 @@ const normalizeLanguageName = (value) => {
   }
 
   return null;
+};
+
+const getLanguageNamesFromUser = (user) => {
+  if (!Array.isArray(user?.spoken_languages)) return [];
+
+  return [
+    ...new Set(user.spoken_languages.map(normalizeLanguageName).filter(Boolean)),
+  ];
 };
 
 const getStoredUserLanguages = () => {
@@ -170,6 +188,68 @@ export function saveUserLanguagePreferences(
   };
 }
 
+const hydrateTransferredAuthSession = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const currentUrl = new URL(window.location.href);
+    const transferredToken = currentUrl.searchParams.get(
+      AUTH_TRANSFER_TOKEN_QUERY_KEY
+    );
+    const transferredUserRaw = currentUrl.searchParams.get(
+      AUTH_TRANSFER_USER_QUERY_KEY
+    );
+
+    if (!transferredToken && !transferredUserRaw) {
+      return;
+    }
+
+    if (typeof transferredToken === "string" && transferredToken.trim() !== "") {
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, transferredToken);
+    }
+
+    if (typeof transferredUserRaw === "string" && transferredUserRaw.trim() !== "") {
+      const transferredUser = JSON.parse(transferredUserRaw);
+
+      if (transferredUser && typeof transferredUser === "object") {
+        localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(transferredUser));
+
+        const defaultCategoryId = Number(transferredUser.default_category_id);
+
+        if (Number.isInteger(defaultCategoryId) && defaultCategoryId > 0) {
+          localStorage.setItem(
+            DEFAULT_CATEGORY_STORAGE_KEY,
+            String(defaultCategoryId)
+          );
+        } else {
+          localStorage.removeItem(DEFAULT_CATEGORY_STORAGE_KEY);
+        }
+
+        const transferredLanguages = getLanguageNamesFromUser(transferredUser);
+
+        if (transferredLanguages.length > 0) {
+          saveUserLanguagePreferences(
+            transferredLanguages,
+            transferredLanguages[0]
+          );
+        }
+      }
+    }
+
+    currentUrl.searchParams.delete(AUTH_TRANSFER_TOKEN_QUERY_KEY);
+    currentUrl.searchParams.delete(AUTH_TRANSFER_USER_QUERY_KEY);
+    window.history.replaceState(
+      null,
+      "",
+      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+    );
+  } catch (error) {
+    // Rien de bloquant ici : on garde simplement le flux standard.
+  }
+};
+
+hydrateTransferredAuthSession();
+
 const getHeaderMarkup = (selectedLanguages, activeLanguage) => {
   const currentLanguage = LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
   const languageOptionsMarkup = selectedLanguages
@@ -202,6 +282,7 @@ const getHeaderMarkup = (selectedLanguages, activeLanguage) => {
       ${languageControlMarkup}
       <ul>
         <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
+        <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
         <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
         <li><a href="../html/connexion.html">${currentLanguage.header.login}</a></li>
       </ul>

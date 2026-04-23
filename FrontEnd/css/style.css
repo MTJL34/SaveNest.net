@@ -209,6 +209,12 @@ body {
   font-size: 0.92rem;
 }
 
+.private-locked .unlock-error {
+  color: var(--sn-error);
+  font-weight: 600;
+  text-align: center;
+}
+
 .hatch-btn {
   min-height: var(--sn-btn-height);
   border: none;

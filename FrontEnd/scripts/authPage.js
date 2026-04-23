@@ -59,8 +59,27 @@ const languageCheckboxes = [
 ];
 
 const API_BASE_URL = "http://localhost:3000/api";
+const APP_BASE_URL = new URL("/", API_BASE_URL).href;
+const HOME_PAGE_URL = new URL("html/index.html", APP_BASE_URL).href;
+const LOGIN_PAGE_URL = new URL("html/connexion.html", APP_BASE_URL).href;
+const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
+const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
+const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
+
+const normalizeAuthPageOrigin = () => {
+  const destinationUrl = new URL(LOGIN_PAGE_URL);
+
+  if (window.location.origin === destinationUrl.origin) {
+    return;
+  }
+
+  destinationUrl.hash = window.location.hash === "#signup" ? "#signup" : "#login";
+  window.location.replace(destinationUrl.href);
+};
+
+normalizeAuthPageOrigin();
 
 const getModeFromHash = () => (window.location.hash === "#signup" ? "signup" : "login");
 
@@ -232,6 +251,14 @@ const saveAuthSession = ({ token, user }) => {
 
   if (user) {
     localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+
+    const defaultCategoryId = Number(user.default_category_id);
+
+    if (Number.isInteger(defaultCategoryId) && defaultCategoryId > 0) {
+      localStorage.setItem(DEFAULT_CATEGORY_STORAGE_KEY, String(defaultCategoryId));
+    } else {
+      localStorage.removeItem(DEFAULT_CATEGORY_STORAGE_KEY);
+    }
   }
 };
 
@@ -248,6 +275,27 @@ const getLanguageNamesFromUser = (user) => {
       return null;
     })
     .filter(Boolean);
+};
+
+const getPostLoginRedirectUrl = ({ token, user }) => {
+  const destinationUrl = new URL(HOME_PAGE_URL);
+
+  if (window.location.origin === destinationUrl.origin) {
+    return destinationUrl.href;
+  }
+
+  if (typeof token === "string" && token.trim() !== "") {
+    destinationUrl.searchParams.set(AUTH_TRANSFER_TOKEN_QUERY_KEY, token);
+  }
+
+  if (user && typeof user === "object") {
+    destinationUrl.searchParams.set(
+      AUTH_TRANSFER_USER_QUERY_KEY,
+      JSON.stringify(user)
+    );
+  }
+
+  return destinationUrl.href;
 };
 
 switchButtons.forEach((button) => {
@@ -365,7 +413,12 @@ if (loginForm) {
       );
 
       window.setTimeout(() => {
-        window.location.assign("../html/index.html");
+        window.location.assign(
+          getPostLoginRedirectUrl({
+            token: data.token,
+            user: data.user,
+          })
+        );
       }, 500);
     } catch (error) {
       console.error("Erreur lors de la connexion :", error);

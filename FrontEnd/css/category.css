@@ -242,6 +242,11 @@ body.page {
   background: var(--sn-surface);
 }
 
+.category-card.is-default {
+  border-color: var(--sn-accent-strong);
+  box-shadow: 0 0 0 2px rgba(180, 134, 92, 0.16);
+}
+
 .category-card.is-private {
   background: var(--sn-surface-soft);
 }
@@ -253,12 +258,15 @@ body.page {
 .category-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: start;
+  gap: 0.7rem;
 }
 
-.category-id {
-  color: var(--sn-text-soft);
-  font-size: 0.85rem;
+.category-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
 }
 
 .badge {
@@ -268,6 +276,37 @@ body.page {
   font-weight: 700;
   background: var(--sn-accent);
   color: var(--sn-brand);
+}
+
+.default-badge {
+  border-radius: 999px;
+  padding: 0.22rem 0.58rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--sn-brand);
+  color: var(--sn-surface);
+}
+
+.default-category-button {
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  padding: 0.4rem 0.65rem;
+  background: var(--sn-surface);
+  color: var(--sn-brand);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.default-category-button:hover {
+  border-color: var(--sn-accent-strong);
+}
+
+.default-category-button.is-active {
+  background: var(--sn-accent);
+  border-color: var(--sn-accent-strong);
 }
 
 .lock-emoji {
@@ -326,6 +365,12 @@ body.page {
   margin-top: 0.35rem;
   color: var(--sn-text-soft);
   font-size: 0.88rem;
+}
+
+.default-category-summary {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .category-actions {

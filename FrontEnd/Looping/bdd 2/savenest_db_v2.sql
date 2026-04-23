@@ -45,11 +45,13 @@ CREATE TABLE `user_` (
   `mail` VARCHAR(150) NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `id_savenest` INT UNSIGNED NOT NULL,
+  `default_category_id` INT UNSIGNED DEFAULT NULL,
   `id_role` INT UNSIGNED NOT NULL,
   PRIMARY KEY (`id_user`),
   UNIQUE KEY `uk_user_pseudo` (`pseudo`),
   UNIQUE KEY `uk_user_mail` (`mail`),
   KEY `idx_user_savenest` (`id_savenest`),
+  KEY `idx_user_default_category` (`default_category_id`),
   KEY `idx_user_role` (`id_role`),
   CONSTRAINT `fk_user_savenest`
     FOREIGN KEY (`id_savenest`) REFERENCES `savenest` (`id_savenest`)
@@ -138,9 +140,9 @@ INSERT INTO `savenest` (`id_savenest`, `date_inscription`) VALUES
 (3, '2026-02-20 14:08:47');
 
 INSERT INTO `user_` (`id_user`, `pseudo`, `mail`, `password`, `id_savenest`, `id_role`) VALUES
-(1, 'Neo', 'neo@savenest.test', '$2b$10$FAKEHASHneo', 1, 2),
-(2, 'Trinity', 'trinity@savenest.test', '$2b$10$FAKEHASHtrinity', 2, 2),
-(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$FAKEHASHmorpheus', 3, 1);
+(1, 'Neo', 'neo@savenest.test', '$2b$10$uWMn2/qzNcOeHLD3fFV1CeNEuyx.mc/r0gt7zrdBihizIawvUYhdO', 1, 2),
+(2, 'Trinity', 'trinity@savenest.test', '$2b$10$p0Ntcti9sdnsMVuzx.BU..K0sO/YBg2NMzCf1c5g7VRiR2RU/FQA6', 2, 2),
+(3, 'Morpheus', 'morpheus@savenest.test', '$2b$10$twEypXVASciOVr48vCydDOCygCxrLEmHad.lVWeJDU5BH15W/bTla', 3, 1);
 
 INSERT INTO `category` (`id_category`, `category_name`, `confidentiality`, `password`, `id_user`) VALUES
 (1, 'Streaming', 0, NULL, 1),
@@ -201,3 +203,8 @@ ALTER TABLE `savenest` AUTO_INCREMENT = 4;
 ALTER TABLE `user_` AUTO_INCREMENT = 4;
 ALTER TABLE `category` AUTO_INCREMENT = 6;
 ALTER TABLE `favs` AUTO_INCREMENT = 25;
+
+ALTER TABLE `user_`
+  ADD CONSTRAINT `fk_user_default_category`
+    FOREIGN KEY (`default_category_id`) REFERENCES `category` (`id_category`)
+    ON DELETE SET NULL ON UPDATE CASCADE;

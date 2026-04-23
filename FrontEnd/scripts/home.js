@@ -6,9 +6,11 @@ setFooter();
 const API_BASE_URL = "http://localhost:3000/api";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
+const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
 const cardsContainerEl = document.querySelector(".js_content");
 let categories = [];
 let favs = [];
+let unlockErrorsByCategoryId = new Map();
 
 function loadUnlockedCategories() {
   try {
@@ -31,6 +33,56 @@ function persistUnlockedCategories() {
   );
 }
 
+function loadCategoryOrder() {
+  try {
+    const raw = localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((id) => String(id));
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistCategoryOrder(categoryOrderIds) {
+  localStorage.setItem(
+    CATEGORY_ORDER_STORAGE_KEY,
+    JSON.stringify(categoryOrderIds)
+  );
+}
+
+function sortCategoriesByStoredOrder(list) {
+  const categoryOrderIds = loadCategoryOrder();
+  const currentIds = list.map((category) => String(category.id_category));
+  const filteredOrder = categoryOrderIds.filter((id) => currentIds.includes(id));
+  const missingIds = currentIds.filter((id) => !filteredOrder.includes(id));
+  const nextOrder = [...filteredOrder, ...missingIds];
+
+  if (nextOrder.join("|") !== categoryOrderIds.join("|")) {
+    persistCategoryOrder(nextOrder);
+  }
+
+  const orderMap = new Map(
+    nextOrder.map((id, index) => [String(id), index])
+  );
+
+  return [...list].sort((left, right) => {
+    const leftOrder =
+      orderMap.get(String(left.id_category)) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      orderMap.get(String(right.id_category)) ?? Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return Number(left.id_category) - Number(right.id_category);
+  });
+}
+
 function getAuthToken() {
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
@@ -49,6 +101,14 @@ async function parseJsonSafely(response) {
 
 function showHomeMessage(message) {
   cardsContainerEl.innerHTML = `<p class="empty-item">${message}</p>`;
+}
+
+function getHomeErrorMessage(error) {
+  if (error?.name === "TypeError") {
+    return "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.";
+  }
+
+  return error?.message || "Impossible de charger les favoris.";
 }
 
 async function fetchWithAuth(path, options = {}) {
@@ -89,12 +149,12 @@ async function loadHomeData() {
       fetchWithAuth("/favs"),
     ]);
 
-    categories = Array.isArray(categoriesData) ? categoriesData : [];
+    categories = Array.isArray(categoriesData) ? sortCategoriesByStoredOrder(categoriesData) : [];
     favs = Array.isArray(favsData) ? favsData : [];
     renderHomeCards();
   } catch (error) {
     console.error("Erreur lors du chargement de la page d'accueil :", error);
-    showHomeMessage(error.message || "Impossible de charger les favoris.");
+    showHomeMessage(getHomeErrorMessage(error));
   }
 }
 
@@ -106,6 +166,19 @@ async function requestCategoryUnlock(categoryId, password) {
     },
     body: JSON.stringify({ password }),
   });
+}
+
+function getUnlockErrorMessage(error) {
+  const message = error?.message || "";
+
+  if (
+    message === "Mot de passe incorrect." ||
+    message === "Mauvais mot de passe."
+  ) {
+    return "Mauvais mot de passe.";
+  }
+
+  return message || "Impossible de déverrouiller cette catégorie.";
 }
 
 function getCategoryPrivacy(item) {
@@ -187,9 +260,12 @@ function renderHomeCards() {
     let cardBody = "";
 
     if (isPrivate && !unlocked) {
+      const unlockError = unlockErrorsByCategoryId.get(categoryId) || "";
+
       cardBody = `
         <div class="private-locked">
           <p>Contenu protégé par mot de passe</p>
+          ${unlockError ? `<p class="unlock-error" role="alert">${unlockError}</p>` : ""}
           <button type="button" class="hatch-btn" data-unlock-category="${categoryId}">
             🥚 Faire éclore l'œuf
           </button>
@@ -248,10 +324,12 @@ cardsContainerEl.addEventListener("click", async (event) => {
     try {
       await requestCategoryUnlock(categoryId, userInput);
     } catch (error) {
-      window.alert(error.message || "Mot de passe incorrect.");
+      unlockErrorsByCategoryId.set(categoryId, getUnlockErrorMessage(error));
+      renderHomeCards();
       return;
     }
 
+    unlockErrorsByCategoryId.delete(categoryId);
     unlockedCategoryIds.add(categoryId);
     persistUnlockedCategories();
     renderHomeCards();

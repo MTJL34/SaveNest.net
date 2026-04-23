@@ -153,12 +153,15 @@ export const updateCategory = async (req, res) => {
     }
 
     const nextConfidentiality = parseConfidentiality(confidentiality, currentCategory.confidentiality);
+    const currentConfidentiality = parseConfidentiality(currentCategory.confidentiality, 0);
+    const submittedPassword =
+      typeof password === "string" ? password.trim() : "";
 
     const nextCategoryName =
       category_name === undefined ? currentCategory.category_name : String(category_name).trim();
     const nextIdUser =
       id_user === undefined ? currentCategory.id_user : parsePositiveId(id_user);
-    let nextPassword = password === undefined ? currentCategory.password : password;
+    let nextPassword = currentCategory.password;
 
     if (!nextCategoryName) {
       return res.status(400).json({ message: "Le nom de catégorie ne peut pas être vide." });
@@ -178,11 +181,30 @@ export const updateCategory = async (req, res) => {
       return res.status(400).json({ message: "confidentiality doit valoir 0 ou 1." });
     }
 
-    if (nextConfidentiality === 1 && (!nextPassword || String(nextPassword).trim() === "")) {
-      return res.status(400).json({ message: "Un mot de passe est requis pour une catégorie confidentielle." });
-    }
+    if (currentConfidentiality === 1) {
+      if (!submittedPassword) {
+        return res.status(400).json({
+          message:
+            nextConfidentiality === 0
+              ? "Le mot de passe actuel de la catégorie est requis pour la rendre publique."
+              : "Le mot de passe actuel de la catégorie est requis pour confirmer la modification.",
+        });
+      }
 
-    if (nextConfidentiality === 0) {
+      if (submittedPassword !== String(currentCategory.password || "")) {
+        return res.status(403).json({ message: "Mauvais mot de passe." });
+      }
+
+      nextPassword = nextConfidentiality === 1 ? currentCategory.password : null;
+    } else if (nextConfidentiality === 1) {
+      if (!submittedPassword) {
+        return res.status(400).json({
+          message: "Un mot de passe est requis pour une catégorie confidentielle.",
+        });
+      }
+
+      nextPassword = submittedPassword;
+    } else {
       nextPassword = null;
     }
 
@@ -271,7 +293,7 @@ export const unlockCategory = async (req, res) => {
     }
 
     if (submittedPassword !== String(category.password || "")) {
-      return res.status(401).json({ message: "Mot de passe incorrect." });
+      return res.status(403).json({ message: "Mauvais mot de passe." });
     }
 
     return res.status(200).json({
