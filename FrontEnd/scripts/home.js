@@ -1,15 +1,30 @@
 // Ce script charge les categories et les favoris affiches sur la page d'accueil.
 import { setHeader, setFooter } from "../scripts/layout.js";
+import {
+  getApiBaseUrl,
+  getAppBaseUrl,
+  getServerUnavailableMessage,
+} from "./apiConfig.js";
+import { enhancePasswordFields } from "./passwordVisibility.js";
+
+const API_BASE_URL = getApiBaseUrl();
+const APP_BASE_URL = getAppBaseUrl();
+const LOGIN_PAGE_URL = new URL("html/connexion.html", APP_BASE_URL).href;
+const LOGIN_REASON_QUERY_KEY = "reason";
+const AUTH_REQUIRED_REASON = "auth-required";
+const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
+const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
+const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
+const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
+
+if (!hasUsableAuthToken()) {
+  clearStoredAuthSession();
+  redirectToLogin();
+  throw new Error("Authentification requise pour afficher la page d'accueil.");
+}
 
 setHeader();
 setFooter();
-
-const API_BASE_URL = "http://localhost:3000/api";
-const APP_BASE_URL = new URL("/", API_BASE_URL).href;
-const LOGIN_PAGE_URL = new URL("html/connexion.html", APP_BASE_URL).href;
-const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
-const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
-const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
 
 const cardsContainerEl = document.querySelector(".js_content");
 
@@ -160,8 +175,51 @@ function getAuthToken() {
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
 
+function clearStoredAuthSession() {
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const [, payload] = token.split(".");
+
+    if (!payload) {
+      return null;
+    }
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedBase64 = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "="
+    );
+    const decodedPayload = window.atob(paddedBase64);
+
+    return JSON.parse(decodedPayload);
+  } catch (error) {
+    return null;
+  }
+}
+
+function hasUsableAuthToken() {
+  const token = getAuthToken();
+
+  if (!token) {
+    return false;
+  }
+
+  const decodedPayload = decodeJwtPayload(token);
+
+  if (!decodedPayload || typeof decodedPayload.exp !== "number") {
+    return false;
+  }
+
+  return decodedPayload.exp * 1000 > Date.now();
+}
+
 function redirectToLogin() {
   const destinationUrl = new URL(LOGIN_PAGE_URL);
+  destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, AUTH_REQUIRED_REASON);
   destinationUrl.hash = "#login";
   window.location.assign(destinationUrl.href);
 }
@@ -180,7 +238,7 @@ function showHomeMessage(message) {
 
 function getHomeErrorMessage(error) {
   if (error && error.name === "TypeError") {
-    return "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.";
+    return getServerUnavailableMessage();
   }
 
   if (error && error.message) {
@@ -212,11 +270,22 @@ async function fetchWithAuth(path, options = {}) {
 
   headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method,
-    headers,
-    body: options.body,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: options.method,
+      headers,
+      body: options.body,
+    });
+  } catch (error) {
+    if (error && error.name === "TypeError") {
+      throw new Error(getServerUnavailableMessage());
+    }
+
+    throw error;
+  }
+
   const data = await parseJsonSafely(response);
 
   if (response.status === 401) {
@@ -466,6 +535,80 @@ function findCategoryById(categoryId) {
   return null;
 }
 
+function createUnlockModal(categoryName) {
+  const modalEl = document.createElement("div");
+  modalEl.className = "unlock-modal";
+  modalEl.innerHTML = `
+    <div class="unlock-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="unlockModalTitle">
+      <button type="button" class="unlock-modal__close" data-unlock-cancel aria-label="Fermer">×</button>
+      <p class="unlock-modal__eyebrow">Catégorie protégée</p>
+      <h2 id="unlockModalTitle">Mot de passe requis</h2>
+      <p class="unlock-modal__text"></p>
+      <form class="unlock-modal__form">
+        <label for="unlockCategoryPassword">Mot de passe</label>
+        <input id="unlockCategoryPassword" type="password" autocomplete="current-password" required>
+        <div class="unlock-modal__actions">
+          <button type="button" class="unlock-modal__cancel" data-unlock-cancel>Annuler</button>
+          <button type="submit" class="unlock-modal__submit">Déverrouiller</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  const textEl = modalEl.querySelector(".unlock-modal__text");
+
+  if (textEl) {
+    textEl.textContent = `Entrez le mot de passe de "${categoryName}" pour voir ses favoris.`;
+  }
+
+  return modalEl;
+}
+
+function askCategoryPassword(categoryName) {
+  return new Promise((resolve) => {
+    const modalEl = createUnlockModal(categoryName);
+    const formEl = modalEl.querySelector(".unlock-modal__form");
+    const passwordInputEl = modalEl.querySelector("#unlockCategoryPassword");
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-unlock-cancel]")
+    );
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal(null);
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal(null);
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => {
+        closeModal(null);
+      });
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      closeModal(passwordInputEl.value);
+    });
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+    enhancePasswordFields(modalEl);
+    passwordInputEl.focus();
+  });
+}
+
 cardsContainerEl.addEventListener("click", async function handleCardsClick(event) {
   // Un seul ecouteur suffit pour gerer tous les boutons ajoutes dynamiquement.
   const unlockBtn = event.target.closest("[data-unlock-category]");
@@ -478,9 +621,7 @@ cardsContainerEl.addEventListener("click", async function handleCardsClick(event
       return;
     }
 
-    const userInput = window.prompt(
-      `Mot de passe de la catégorie "${selectedCategory.category_name}" :`
-    );
+    const userInput = await askCategoryPassword(selectedCategory.category_name);
 
     if (userInput === null) {
       return;

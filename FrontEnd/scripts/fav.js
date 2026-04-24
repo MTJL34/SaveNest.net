@@ -1,7 +1,9 @@
 // Ce script gere la page d'ajout, de modification et de suppression des favoris.
 import { setHeader, setFooter } from "../scripts/layout.js";
+import { getApiBaseUrl, getServerUnavailableMessage } from "./apiConfig.js";
+import { enhancePasswordFields } from "./passwordVisibility.js";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = getApiBaseUrl();
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
@@ -16,6 +18,7 @@ setFooter();
 let categories = [];
 let favorites = [];
 let selectedEditFavId = "";
+let selectedEditFavIds = new Set();
 let selectedDeleteFavId = "";
 let unlockedCategoryIds = loadUnlockedCategories();
 let expandedEditCategoryIds = new Set();
@@ -25,6 +28,7 @@ let favoriteOrderByCategory = loadFavoriteOrder();
 let defaultCategoryId = loadDefaultCategory();
 let draggedCategoryId = "";
 let draggedFavoriteId = "";
+let draggedFavoriteIds = [];
 let currentActionMode = "edit";
 
 const html = `
@@ -57,12 +61,12 @@ const html = `
           <p id="favCategoryHelp" class="help"></p>
         </div>
 
+        <p id="favFormMessage" class="help confirmation-message" aria-live="polite"></p>
+
         <div class="actions">
           <button type="submit" class="btn btn-primary">Ajouter le favori</button>
           <button type="reset" class="btn btn-ghost">Réinitialiser</button>
         </div>
-
-        <p id="favFormMessage" class="help" aria-live="polite"></p>
       </form>
     </aside>
 
@@ -112,7 +116,7 @@ const html = `
         <div class="edit-board-header">
           <h3>Ouvrez une ou plusieurs catégories</h3>
           <p id="editBoardMessage" class="help">
-            Ouvrez une catégorie, puis choisissez un favori à modifier.
+            Ouvrez une catégorie, puis cochez plusieurs favoris si vous voulez les déplacer ensemble.
           </p>
         </div>
 
@@ -146,11 +150,11 @@ const html = `
             </select>
           </div>
 
+          <p id="editFavMessage" class="help confirmation-message" aria-live="polite"></p>
+
           <div class="actions">
             <button type="submit" class="btn btn-primary">Mettre à jour</button>
           </div>
-
-          <p id="editFavMessage" class="help" aria-live="polite"></p>
         </form>
       </section>
 
@@ -181,7 +185,7 @@ const html = `
             <button type="submit" class="btn btn-primary">Supprimer le favori</button>
           </div>
 
-          <p id="deleteFavMessage" class="help" aria-live="polite"></p>
+          <p id="deleteFavMessage" class="help confirmation-message" aria-live="polite"></p>
         </form>
       </section>
     </section>
@@ -447,13 +451,24 @@ async function fetchWithAuth(path, options = {}) {
     throw new Error("Connectez-vous pour gérer vos favoris.");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    if (error && error.name === "TypeError") {
+      throw new Error(getServerUnavailableMessage());
+    }
+
+    throw error;
+  }
+
   const data = await parseJsonSafely(response);
 
   if (response.status === 401) {
@@ -482,7 +497,10 @@ function setMessage(element, message, type = "") {
   if (!element) return;
 
   element.textContent = message;
-  element.className = `help${type ? ` is-${type}` : ""}`;
+  const confirmationClass = element.classList.contains("confirmation-message")
+    ? " confirmation-message"
+    : "";
+  element.className = `help${confirmationClass}${type ? ` is-${type}` : ""}`;
 }
 
 function setEditSelectionSummary(message, type = "") {
@@ -528,6 +546,158 @@ function getUnlockErrorMessage(error) {
   }
 
   return message || "Impossible de déverrouiller cette catégorie.";
+}
+
+function createFavoritePasswordModal(categoryName) {
+  const modalEl = document.createElement("div");
+  modalEl.className = "favorite-modal";
+  modalEl.innerHTML = `
+    <div class="favorite-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="favoritePasswordModalTitle">
+      <button type="button" class="favorite-modal__close" data-favorite-modal-cancel aria-label="Fermer">×</button>
+      <p class="favorite-modal__eyebrow">Catégorie protégée</p>
+      <h2 id="favoritePasswordModalTitle">Mot de passe requis</h2>
+      <p class="favorite-modal__text"></p>
+      <form class="favorite-modal__form">
+        <label for="favoriteCategoryPassword">Mot de passe</label>
+        <input id="favoriteCategoryPassword" type="password" autocomplete="current-password" required>
+        <div class="favorite-modal__actions">
+          <button type="button" class="favorite-modal__cancel" data-favorite-modal-cancel>Annuler</button>
+          <button type="submit" class="favorite-modal__submit">Déverrouiller</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  const textEl = modalEl.querySelector(".favorite-modal__text");
+
+  if (textEl) {
+    textEl.textContent = `Entrez le mot de passe de "${categoryName}" pour accéder à ses favoris.`;
+  }
+
+  return modalEl;
+}
+
+function askFavoriteCategoryPassword(categoryName) {
+  return new Promise((resolve) => {
+    const modalEl = createFavoritePasswordModal(categoryName);
+    const formEl = modalEl.querySelector(".favorite-modal__form");
+    const passwordInputEl = modalEl.querySelector("#favoriteCategoryPassword");
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-favorite-modal-cancel]")
+    );
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal(null);
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal(null);
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => {
+        closeModal(null);
+      });
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      closeModal(passwordInputEl.value);
+    });
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+    enhancePasswordFields(modalEl);
+    passwordInputEl.focus();
+  });
+}
+
+function showFavoriteConfirmModal({
+  title,
+  message,
+  confirmLabel = "Confirmer",
+  cancelLabel = "Annuler",
+  danger = false,
+}) {
+  return new Promise((resolve) => {
+    const modalEl = document.createElement("div");
+    modalEl.className = "favorite-modal";
+    modalEl.innerHTML = `
+      <div class="favorite-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="favoriteConfirmModalTitle">
+        <button type="button" class="favorite-modal__close" data-favorite-modal-cancel aria-label="Fermer">×</button>
+        <p class="favorite-modal__eyebrow">SaveNest</p>
+        <h2 id="favoriteConfirmModalTitle"></h2>
+        <p class="favorite-modal__text"></p>
+        <div class="favorite-modal__actions">
+          <button type="button" class="favorite-modal__cancel" data-favorite-modal-cancel></button>
+          <button type="button" class="favorite-modal__submit" data-favorite-modal-submit></button>
+        </div>
+      </div>
+    `;
+
+    const titleEl = modalEl.querySelector("#favoriteConfirmModalTitle");
+    const textEl = modalEl.querySelector(".favorite-modal__text");
+    const cancelButton = modalEl.querySelector(".favorite-modal__cancel");
+    const submitButton = modalEl.querySelector(".favorite-modal__submit");
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-favorite-modal-cancel]")
+    );
+
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = message;
+    if (cancelButton) cancelButton.textContent = cancelLabel;
+    if (submitButton) {
+      submitButton.textContent = confirmLabel;
+      submitButton.classList.toggle("is-danger", danger);
+    }
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal(false);
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal(false);
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => {
+        closeModal(false);
+      });
+    }
+
+    if (submitButton) {
+      submitButton.addEventListener("click", () => {
+        closeModal(true);
+      });
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+
+    if (submitButton) {
+      submitButton.focus();
+    }
+  });
 }
 
 function getCategoryOptionsMarkup() {
@@ -680,7 +850,7 @@ function updateWorkspaceSummary() {
 
 function getActionHelperText() {
   if (currentActionMode === "edit") {
-    return "Choisissez un favori à modifier dans une catégorie ouverte.";
+    return "Choisissez un favori à modifier ou cochez-en plusieurs pour les déplacer ensemble.";
   }
 
   if (currentActionMode === "delete") {
@@ -780,38 +950,47 @@ function syncFavoriteOrderState() {
   }
 }
 
-function placeFavoriteInOrder({ favId, targetCategoryId, beforeFavId = "" }) {
-  const normalizedFavId = String(favId || "");
+function placeFavoritesInOrder({ favIds, targetCategoryId, beforeFavId = "" }) {
+  const normalizedFavIds = [...new Set((favIds || []).map((id) => String(id || "")).filter(Boolean))];
   const normalizedCategoryId = String(targetCategoryId || "");
   const normalizedBeforeFavId = String(beforeFavId || "");
 
-  if (!normalizedFavId || !normalizedCategoryId) {
+  if (normalizedFavIds.length === 0 || !normalizedCategoryId) {
     return;
   }
 
+  const movingFavoriteIds = new Set(normalizedFavIds);
   const nextFavoriteOrderByCategory = Object.fromEntries(
     Object.entries(favoriteOrderByCategory)
       .map(([categoryId, favoriteIds]) => [
         categoryId,
-        favoriteIds.filter((id) => String(id) !== normalizedFavId),
+        favoriteIds.filter((id) => !movingFavoriteIds.has(String(id))),
       ])
       .filter(([, favoriteIds]) => favoriteIds.length > 0)
   );
 
   const targetFavoriteIds = [...(nextFavoriteOrderByCategory[normalizedCategoryId] || [])];
-  const insertionIndex = normalizedBeforeFavId
+  const insertionIndex = normalizedBeforeFavId && !movingFavoriteIds.has(normalizedBeforeFavId)
     ? targetFavoriteIds.indexOf(normalizedBeforeFavId)
     : -1;
 
   if (insertionIndex === -1) {
-    targetFavoriteIds.push(normalizedFavId);
+    targetFavoriteIds.push(...normalizedFavIds);
   } else {
-    targetFavoriteIds.splice(insertionIndex, 0, normalizedFavId);
+    targetFavoriteIds.splice(insertionIndex, 0, ...normalizedFavIds);
   }
 
   nextFavoriteOrderByCategory[normalizedCategoryId] = targetFavoriteIds;
   favoriteOrderByCategory = nextFavoriteOrderByCategory;
   persistFavoriteOrder();
+}
+
+function placeFavoriteInOrder({ favId, targetCategoryId, beforeFavId = "" }) {
+  placeFavoritesInOrder({
+    favIds: [favId],
+    targetCategoryId,
+    beforeFavId,
+  });
 }
 
 function getFavoritesGroupedByCategory() {
@@ -864,13 +1043,24 @@ function getFavUrlMarkup(fav) {
 function getEditBoardFavoriteMarkup(fav) {
   const hasUrl = typeof fav.url_favs === "string" && fav.url_favs.trim() !== "";
   const isSelected = String(selectedEditFavId) === String(fav.id_favs);
+  const isBatchSelected = selectedEditFavIds.has(String(fav.id_favs));
 
   return `
     <li
-      class="fav-draft-item ${isSelected ? "is-selected" : ""}"
+      class="fav-draft-item has-select-toggle ${isSelected ? "is-selected" : ""} ${isBatchSelected ? "is-batch-selected" : ""}"
       data-favorite-item="${fav.id_favs}"
       data-favorite-category="${fav.id_category}"
     >
+      <button
+        type="button"
+        class="fav-select-toggle"
+        data-toggle-edit-fav-selection="${fav.id_favs}"
+        aria-pressed="${isBatchSelected ? "true" : "false"}"
+        aria-label="${isBatchSelected ? "Retirer" : "Ajouter"} ${fav.title_favs} de la sélection multiple"
+        title="${isBatchSelected ? "Retirer de la sélection" : "Ajouter à la sélection"}"
+      >
+        ${isBatchSelected ? "✓" : ""}
+      </button>
       <button
         type="button"
         class="fav-choice edit-favorite-drag"
@@ -878,7 +1068,7 @@ function getEditBoardFavoriteMarkup(fav) {
         data-drag-fav="${fav.id_favs}"
         draggable="true"
       >
-        <span class="fav-choice-title">#${fav.id_favs} - ${fav.title_favs}</span>
+        <span class="fav-choice-title">${fav.title_favs}</span>
         <span class="fav-choice-url">${hasUrl ? fav.url_favs : "Aucune URL"}</span>
       </button>
     </li>
@@ -971,12 +1161,6 @@ function renderEditCategoryQuickList() {
     .join("");
 }
 
-function getExpandedEditCategories() {
-  return categories.filter((category) =>
-    expandedEditCategoryIds.has(String(category.id_category))
-  );
-}
-
 function renderEditBoard() {
   if (categories.length === 0) {
     editDragBoard.innerHTML = "";
@@ -986,23 +1170,7 @@ function renderEditBoard() {
   }
 
   editCategoryEmptyState.style.display = "none";
-  const expandedCategories = getExpandedEditCategories();
-
-  if (expandedCategories.length === 0) {
-    editDragBoard.innerHTML = `
-      <div class="edit-open-placeholder">
-        <p class="edit-open-placeholder-title">Aucune catégorie ouverte</p>
-        <p>Choisissez une catégorie dans la liste ci-dessus pour afficher ici ses favoris modifiables.</p>
-      </div>
-    `;
-    setMessage(
-      editBoardMessage,
-      "Ouvrez une catégorie depuis la liste ci-dessus pour commencer à modifier vos favoris."
-    );
-    return;
-  }
-
-  editDragBoard.innerHTML = expandedCategories
+  editDragBoard.innerHTML = categories
     .map((category) => {
       const categoryId = String(category.id_category);
       const isPrivate = isCategoryPrivate(category);
@@ -1020,7 +1188,7 @@ function renderEditBoard() {
         <section
           class="edit-category-lane ${isPrivate ? "is-private" : "is-public"} ${hasSelectedFavorite ? "has-selection" : ""} ${isExpanded ? "is-expanded" : ""}"
           data-category-lane="${categoryId}"
-          ${isUnlocked ? `data-drop-fav-category="${categoryId}"` : ""}
+          data-drop-fav-category="${categoryId}"
         >
           <div class="edit-category-header">
             <button
@@ -1071,7 +1239,11 @@ function renderEditBoard() {
                     }
                   </ul>
                 `
-              : ""
+              : `
+                <div class="edit-closed-drop-zone">
+                  <p>Déposez un favori ici pour le ranger dans cette catégorie.</p>
+                </div>
+              `
           }
         </section>
       `;
@@ -1080,7 +1252,7 @@ function renderEditBoard() {
 
   setMessage(
     editBoardMessage,
-    "Ouvrez une catégorie, puis choisissez un favori à modifier."
+    "Glissez un favori sur une catégorie, même fermée. Ouvrez-la seulement si vous voulez voir son contenu."
   );
 }
 
@@ -1182,7 +1354,7 @@ function fillEditForm(selectedId) {
   editFavTitle.value = fav.title_favs || "";
   editFavUrl.value = fav.url_favs || "";
   editFavCategory.value = String(fav.id_category || "");
-  setEditSelectionSummary(`Favori sélectionné : #${fav.id_favs} - ${fav.title_favs}.`);
+  setEditSelectionSummary(`Favori sélectionné : ${fav.title_favs}.`);
   editFavForm.classList.remove("is-collapsed");
   editFavForm.setAttribute("aria-expanded", "true");
 }
@@ -1208,10 +1380,19 @@ function syncEditSelectionState() {
   const availableCategoryIds = new Set(
     categories.map((category) => String(category.id_category))
   );
+  const availableFavoriteIds = new Set(
+    favorites.map((fav) => String(fav.id_favs))
+  );
 
   expandedEditCategoryIds = new Set(
     [...expandedEditCategoryIds].filter((categoryId) =>
       availableCategoryIds.has(String(categoryId))
+    )
+  );
+
+  selectedEditFavIds = new Set(
+    [...selectedEditFavIds].filter((favId) =>
+      availableFavoriteIds.has(String(favId))
     )
   );
 
@@ -1433,60 +1614,134 @@ function swapCategoryOrder(sourceCategoryId, targetCategoryId) {
   categories = sortCategoriesByStoredOrder(categories);
 }
 
-async function moveFavoriteToCategory(favId, targetCategoryId, options = {}) {
-  const { beforeFavId = "" } = options;
-  const favorite = favorites.find(
-    (item) => String(item.id_favs) === String(favId)
+function canOpenCategoryAfterFavoriteMove(categoryId) {
+  const category = getCategoryById(categoryId);
+
+  return Boolean(category) && (!isCategoryPrivate(category) || isCategoryUnlocked(categoryId));
+}
+
+function getFavoriteDragIds(favId) {
+  const normalizedFavId = String(favId || "");
+
+  if (!normalizedFavId) {
+    return [];
+  }
+
+  if (!selectedEditFavIds.has(normalizedFavId)) {
+    return [normalizedFavId];
+  }
+
+  const visibleFavoriteIds = new Set(
+    Array.from(editDragBoard.querySelectorAll("[data-favorite-item]")).map(
+      (item) => String(item.dataset.favoriteItem)
+    )
   );
+  const selectedIds = new Set(
+    [...selectedEditFavIds].filter((id) => visibleFavoriteIds.has(String(id)))
+  );
+
+  return favorites
+    .filter((fav) => selectedIds.has(String(fav.id_favs)))
+    .map((fav) => String(fav.id_favs));
+}
+
+function getDraggedFavoriteIds() {
+  if (draggedFavoriteIds.length > 0) {
+    return draggedFavoriteIds;
+  }
+
+  return draggedFavoriteId ? [String(draggedFavoriteId)] : [];
+}
+
+async function moveFavoriteToCategory(favId, targetCategoryId, options = {}) {
+  return moveFavoritesToCategory([favId], targetCategoryId, options);
+}
+
+async function moveFavoritesToCategory(favIds, targetCategoryId, options = {}) {
+  const { beforeFavId = "" } = options;
   const targetCategory = categories.find(
     (item) => String(item.id_category) === String(targetCategoryId)
   );
+  const normalizedFavIds = [...new Set((favIds || []).map((id) => String(id || "")).filter(Boolean))];
+  const movingFavoriteIds = new Set(normalizedFavIds);
+  const movingFavorites = favorites.filter((item) =>
+    movingFavoriteIds.has(String(item.id_favs))
+  );
 
-  if (!favorite || !targetCategory) return;
+  if (movingFavorites.length === 0 || !targetCategory) return;
 
-  if (String(favorite.id_category) === String(targetCategoryId)) {
-    placeFavoriteInOrder({
-      favId,
-      targetCategoryId,
-      beforeFavId,
+  if (beforeFavId && movingFavoriteIds.has(String(beforeFavId))) {
+    return;
+  }
+
+  const favoritesToPatch = movingFavorites.filter(
+    (favorite) => String(favorite.id_category) !== String(targetCategoryId)
+  );
+  const updatedFavorites = [];
+
+  for (const favorite of favoritesToPatch) {
+    const data = await fetchWithAuth(`/favs/${favorite.id_favs}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title_favs: favorite.title_favs,
+        url_favs: favorite.url_favs || null,
+        id_category: Number(targetCategoryId),
+      }),
     });
-    selectedEditFavId = String(favId);
+
+    if (data.fav) {
+      updatedFavorites.push(data.fav);
+    }
+  }
+
+  if (updatedFavorites.length > 0) {
+    const updatedById = new Map(
+      updatedFavorites.map((fav) => [String(fav.id_favs), fav])
+    );
+    favorites = favorites.map((fav) =>
+      updatedById.get(String(fav.id_favs)) || fav
+    );
+  }
+
+  placeFavoritesInOrder({
+    favIds: movingFavorites.map((fav) => String(fav.id_favs)),
+    targetCategoryId,
+    beforeFavId,
+  });
+
+  const canOpenTarget = canOpenCategoryAfterFavoriteMove(targetCategoryId);
+  const movedCount = movingFavorites.length;
+
+  selectedEditFavIds.clear();
+  selectedEditFavId = movedCount === 1 && canOpenTarget
+    ? String(movingFavorites[0].id_favs)
+    : "";
+
+  if (canOpenTarget) {
     expandedEditCategoryIds.add(String(targetCategoryId));
-    refreshUI();
+  }
+
+  refreshUI();
+
+  if (favoritesToPatch.length === 0) {
     setMessage(
       editBoardMessage,
-      `Ordre des favoris mis à jour dans "${targetCategory.category_name}".`,
+      movedCount === 1
+        ? `Ordre des favoris mis à jour dans "${targetCategory.category_name}".`
+        : `Ordre de ${movedCount} favoris mis à jour dans "${targetCategory.category_name}".`,
       "success"
     );
     return;
   }
 
-  const data = await fetchWithAuth(`/favs/${favId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      title_favs: favorite.title_favs,
-      url_favs: favorite.url_favs || null,
-      id_category: Number(targetCategoryId),
-    }),
-  });
-
-  favorites = favorites.map((fav) =>
-    String(fav.id_favs) === String(favId) ? data.fav : fav
-  );
-  placeFavoriteInOrder({
-    favId,
-    targetCategoryId,
-    beforeFavId,
-  });
-  selectedEditFavId = String(favId);
-  expandedEditCategoryIds.add(String(targetCategoryId));
-  refreshUI();
   setMessage(
     editBoardMessage,
-    `Favori déplacé vers "${targetCategory.category_name}".`,
+    movedCount === 1
+      ? `Favori déplacé vers "${targetCategory.category_name}".`
+      : `${movedCount} favoris déplacés vers "${targetCategory.category_name}".`,
     "success"
   );
   setMessage(editFavMessage, "");
@@ -1503,9 +1758,7 @@ async function ensureCategorySelectionAccess(categoryId) {
     return true;
   }
 
-  const userInput = window.prompt(
-    `Mot de passe de la catégorie "${category.category_name}" :`
-  );
+  const userInput = await askFavoriteCategoryPassword(category.category_name);
 
   if (userInput === null) {
     return false;
@@ -1642,6 +1895,29 @@ editDragBoard.addEventListener("click", async (event) => {
     return;
   }
 
+  const selectionToggle = event.target.closest("[data-toggle-edit-fav-selection]");
+
+  if (selectionToggle) {
+    const favId = String(selectionToggle.dataset.toggleEditFavSelection || "");
+
+    if (!favId) return;
+
+    if (selectedEditFavIds.has(favId)) {
+      selectedEditFavIds.delete(favId);
+    } else {
+      selectedEditFavIds.add(favId);
+    }
+
+    renderEditBoard();
+    setMessage(
+      editBoardMessage,
+      selectedEditFavIds.size > 0
+        ? `${selectedEditFavIds.size} favori${selectedEditFavIds.size > 1 ? "s" : ""} sélectionné${selectedEditFavIds.size > 1 ? "s" : ""}. Glissez-en un pour déplacer la sélection.`
+        : "Glissez un favori sur une catégorie, même fermée. Ouvrez-la seulement si vous voulez voir son contenu."
+    );
+    return;
+  }
+
   const favoriteButton = event.target.closest("[data-edit-fav]");
 
   if (!favoriteButton) return;
@@ -1731,6 +2007,7 @@ editDragBoard.addEventListener("dragstart", (event) => {
   if (dragHandle) {
     draggedCategoryId = String(dragHandle.dataset.dragCategory);
     draggedFavoriteId = "";
+    draggedFavoriteIds = [];
     dragHandle.closest("[data-category-lane]")?.classList.add("is-dragging");
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", draggedCategoryId);
@@ -1740,20 +2017,32 @@ editDragBoard.addEventListener("dragstart", (event) => {
   if (!favoriteHandle) return;
 
   draggedFavoriteId = String(favoriteHandle.dataset.dragFav);
+  draggedFavoriteIds = getFavoriteDragIds(draggedFavoriteId);
   draggedCategoryId = "";
-  favoriteHandle.closest(".fav-draft-item")?.classList.add("is-dragging");
+  const draggingIds = new Set(draggedFavoriteIds);
+
+  editDragBoard
+    .querySelectorAll("[data-favorite-item]")
+    .forEach((item) => {
+      item.classList.toggle(
+        "is-dragging",
+        draggingIds.has(String(item.dataset.favoriteItem))
+      );
+    });
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", draggedFavoriteId);
 });
 
 editDragBoard.addEventListener("dragend", (event) => {
   const dragHandle = event.target.closest("[data-drag-category]");
-  const favoriteHandle = event.target.closest("[data-drag-fav]");
 
   draggedCategoryId = "";
   draggedFavoriteId = "";
+  draggedFavoriteIds = [];
   dragHandle?.closest("[data-category-lane]")?.classList.remove("is-dragging");
-  favoriteHandle?.closest(".fav-draft-item")?.classList.remove("is-dragging");
+  editDragBoard
+    .querySelectorAll(".fav-draft-item.is-dragging")
+    .forEach((item) => item.classList.remove("is-dragging"));
   clearCategoryDropStates();
   clearFavoriteDropStates();
   clearFavoriteItemDropStates();
@@ -1765,11 +2054,12 @@ editDragBoard.addEventListener("dragover", (event) => {
   );
   const lane = event.target.closest("[data-category-lane]");
   const favoriteDropLane = event.target.closest("[data-drop-fav-category]");
+  const movingFavoriteIds = getDraggedFavoriteIds();
 
-  if (draggedFavoriteId && favoriteDropItem) {
+  if (movingFavoriteIds.length > 0 && favoriteDropItem) {
     const targetFavId = String(favoriteDropItem.dataset.favoriteItem);
 
-    if (!targetFavId || targetFavId === draggedFavoriteId) {
+    if (!targetFavId || movingFavoriteIds.includes(targetFavId)) {
       return;
     }
 
@@ -1781,13 +2071,13 @@ editDragBoard.addEventListener("dragover", (event) => {
     return;
   }
 
-  if (draggedFavoriteId && favoriteDropLane) {
+  if (movingFavoriteIds.length > 0 && favoriteDropLane) {
     const targetCategoryId = String(favoriteDropLane.dataset.dropFavCategory);
-    const draggedFavorite = favorites.find(
-      (fav) => String(fav.id_favs) === String(draggedFavoriteId)
+    const hasDraggedFavorite = favorites.some(
+      (fav) => movingFavoriteIds.includes(String(fav.id_favs))
     );
 
-    if (!targetCategoryId || !draggedFavorite) {
+    if (!targetCategoryId || !hasDraggedFavorite) {
       return;
     }
 
@@ -1841,23 +2131,27 @@ editDragBoard.addEventListener("drop", async (event) => {
     "[data-favorite-item][data-favorite-category]"
   );
   const favoriteDropLane = event.target.closest("[data-drop-fav-category]");
+  const movingFavoriteIds = getDraggedFavoriteIds();
 
-  if (draggedFavoriteId && favoriteDropItem) {
+  if (movingFavoriteIds.length > 0 && favoriteDropItem) {
     event.preventDefault();
-    const favId =
-      event.dataTransfer.getData("text/plain") || draggedFavoriteId;
     const targetFavId = String(favoriteDropItem.dataset.favoriteItem);
     const targetCategoryId = String(favoriteDropItem.dataset.favoriteCategory);
 
     clearFavoriteDropStates();
     clearFavoriteItemDropStates();
 
-    if (!favId || !targetFavId || !targetCategoryId || favId === targetFavId) {
+    if (
+      movingFavoriteIds.length === 0 ||
+      !targetFavId ||
+      !targetCategoryId ||
+      movingFavoriteIds.includes(targetFavId)
+    ) {
       return;
     }
 
     try {
-      await moveFavoriteToCategory(favId, targetCategoryId, {
+      await moveFavoritesToCategory(movingFavoriteIds, targetCategoryId, {
         beforeFavId: targetFavId,
       });
     } catch (error) {
@@ -1871,19 +2165,17 @@ editDragBoard.addEventListener("drop", async (event) => {
     return;
   }
 
-  if (draggedFavoriteId && favoriteDropLane) {
+  if (movingFavoriteIds.length > 0 && favoriteDropLane) {
     event.preventDefault();
-    const favId =
-      event.dataTransfer.getData("text/plain") || draggedFavoriteId;
     const targetCategoryId = String(favoriteDropLane.dataset.dropFavCategory);
 
     clearFavoriteDropStates();
     clearFavoriteItemDropStates();
 
-    if (!favId || !targetCategoryId) return;
+    if (movingFavoriteIds.length === 0 || !targetCategoryId) return;
 
     try {
-      await moveFavoriteToCategory(favId, targetCategoryId);
+      await moveFavoritesToCategory(movingFavoriteIds, targetCategoryId);
     } catch (error) {
       setMessage(
         editBoardMessage,
@@ -1987,9 +2279,13 @@ deleteFavForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const isConfirmed = window.confirm(
-    `Confirmer la suppression du favori "${favToDelete.title_favs}" ?`
-  );
+  const isConfirmed = await showFavoriteConfirmModal({
+    title: "Supprimer ce favori ?",
+    message: `Confirmer la suppression du favori "${favToDelete.title_favs}" ?`,
+    confirmLabel: "Supprimer",
+    cancelLabel: "Annuler",
+    danger: true,
+  });
 
   if (!isConfirmed) return;
 
@@ -2002,6 +2298,7 @@ deleteFavForm.addEventListener("submit", async (event) => {
     if (String(selectedEditFavId) === String(selectedId)) {
       selectedEditFavId = "";
     }
+    selectedEditFavIds.delete(String(selectedId));
     if (String(selectedDeleteFavId) === String(selectedId)) {
       selectedDeleteFavId = "";
     }

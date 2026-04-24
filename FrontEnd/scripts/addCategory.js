@@ -1,7 +1,9 @@
 // Ce script gere la page de creation, modification et suppression des categories.
 import { setHeader, setFooter } from "../scripts/layout.js";
+import { getApiBaseUrl, getServerUnavailableMessage } from "./apiConfig.js";
+import { enhancePasswordFields } from "./passwordVisibility.js";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = getApiBaseUrl();
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
@@ -45,13 +47,24 @@ async function fetchWithAuth(path, options = {}) {
     throw new Error("Connectez-vous pour gérer vos catégories.");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    if (error && error.name === "TypeError") {
+      throw new Error(getServerUnavailableMessage());
+    }
+
+    throw error;
+  }
+
   const data = await parseJsonSafely(response);
 
   if (response.status === 401) {
@@ -243,7 +256,85 @@ function syncDefaultCategoryState() {
   persistDefaultCategory();
 }
 
-function resolveCategorySecurity({
+function showCategoryConfirmModal({
+  title,
+  message,
+  confirmLabel = "Confirmer",
+  cancelLabel = "Annuler",
+  danger = false,
+}) {
+  return new Promise((resolve) => {
+    const modalEl = document.createElement("div");
+    modalEl.className = "category-confirm-modal";
+    modalEl.innerHTML = `
+      <div class="category-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="categoryConfirmTitle">
+        <button type="button" class="category-confirm-modal__close" data-confirm-cancel aria-label="Fermer">×</button>
+        <p class="category-confirm-modal__eyebrow">SaveNest</p>
+        <h2 id="categoryConfirmTitle"></h2>
+        <p class="category-confirm-modal__text"></p>
+        <div class="category-confirm-modal__actions">
+          <button type="button" class="category-confirm-modal__cancel" data-confirm-cancel></button>
+          <button type="button" class="category-confirm-modal__submit" data-confirm-submit></button>
+        </div>
+      </div>
+    `;
+
+    const titleEl = modalEl.querySelector("#categoryConfirmTitle");
+    const textEl = modalEl.querySelector(".category-confirm-modal__text");
+    const cancelButton = modalEl.querySelector(".category-confirm-modal__cancel");
+    const submitButton = modalEl.querySelector(".category-confirm-modal__submit");
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-confirm-cancel]")
+    );
+
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = message;
+    if (cancelButton) cancelButton.textContent = cancelLabel;
+    if (submitButton) {
+      submitButton.textContent = confirmLabel;
+      submitButton.classList.toggle("is-danger", danger);
+    }
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal(false);
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal(false);
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => {
+        closeModal(false);
+      });
+    }
+
+    if (submitButton) {
+      submitButton.addEventListener("click", () => {
+        closeModal(true);
+      });
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+
+    if (submitButton) {
+      submitButton.focus();
+    }
+  });
+}
+
+async function resolveCategorySecurity({
   confidentiality,
   password,
   messageEl,
@@ -261,9 +352,13 @@ function resolveCategorySecurity({
   }
 
   if (confidentiality === "Public" && trimmedPassword) {
-    const shouldProtect = window.confirm(
-      "Un mot de passe a été saisi. Voulez-vous passer cette catégorie en privée ?"
-    );
+    const shouldProtect = await showCategoryConfirmModal({
+      title: "Protéger cette catégorie ?",
+      message:
+        "Un mot de passe a été saisi. Voulez-vous passer cette catégorie en privée ?",
+      confirmLabel: "Passer en privée",
+      cancelLabel: "Garder publique",
+    });
 
     if (!shouldProtect) {
       setInlineMessage(
@@ -456,7 +551,7 @@ function getEditPasswordConfig(selectedCategory, targetConfidentiality) {
   };
 }
 
-function resolveEditCategorySecurity({
+async function resolveEditCategorySecurity({
   selectedCategory,
   confidentiality,
   password,
@@ -487,7 +582,7 @@ function resolveEditCategorySecurity({
     };
   }
 
-  return resolveCategorySecurity({
+  return await resolveCategorySecurity({
     confidentiality: nextConfidentiality,
     password: trimmedPassword,
     messageEl,
@@ -518,31 +613,35 @@ function renderEditPanel() {
     <section class="inline-edit panel">
       <h2>Modifier la catégorie</h2>
       <form id="inlineEditForm" class="category-form">
-        <label for="inlineEditName">Nom</label>
-        <input id="inlineEditName" type="text" value="${selectedCategory.category_name}" required />
+        <div class="inline-edit-layout">
+          <div class="inline-edit-fields">
+            <label for="inlineEditName">Nom</label>
+            <input id="inlineEditName" type="text" value="${selectedCategory.category_name}" required />
 
-        <label for="inlineEditPrivacy">Confidentialité</label>
-        <select id="inlineEditPrivacy">
-          <option value="Public" ${confidentiality === "Public" ? "selected" : ""}>Publique</option>
-          <option value="Private" ${confidentiality === "Private" ? "selected" : ""}>Privée</option>
-        </select>
+            <label for="inlineEditPrivacy">Confidentialité</label>
+            <select id="inlineEditPrivacy">
+              <option value="Public" ${confidentiality === "Public" ? "selected" : ""}>Publique</option>
+              <option value="Private" ${confidentiality === "Private" ? "selected" : ""}>Privée</option>
+            </select>
 
-        <label id="inlineEditPasswordLabel" for="inlineEditPassword">${editPasswordConfig.label}</label>
-        <input
-          id="inlineEditPassword"
-          type="password"
-          value=""
-          placeholder="${editPasswordConfig.placeholder}"
-          ${editPasswordConfig.required ? "required" : ""}
-        />
+            <label id="inlineEditPasswordLabel" for="inlineEditPassword">${editPasswordConfig.label}</label>
+            <input
+              id="inlineEditPassword"
+              type="password"
+              value=""
+              placeholder="${editPasswordConfig.placeholder}"
+              ${editPasswordConfig.required ? "required" : ""}
+            />
 
-        <p id="inlineEditPasswordHelp" class="form-message">${editPasswordConfig.help}</p>
+            <p id="inlineEditPasswordHelp" class="form-message">${editPasswordConfig.help}</p>
 
-        <div class="inline-edit-actions">
-          <button type="submit" class="btn-primary">Enregistrer</button>
-          <button type="button" id="cancelInlineEdit" class="btn-primary">Annuler</button>
+            <div class="inline-edit-actions">
+              <button type="submit" class="btn-primary">Enregistrer</button>
+              <button type="button" id="cancelInlineEdit" class="btn-primary">Annuler</button>
+            </div>
+          </div>
+          <p id="inlineEditMessage" class="form-message confirmation-message" aria-live="polite"></p>
         </div>
-        <p id="inlineEditMessage" class="form-message" aria-live="polite"></p>
       </form>
     </section>
   `;
@@ -634,6 +733,7 @@ function renderPage() {
     </section>
   `;
 
+  enhancePasswordFields(mainEl);
   setupFormEvents();
 }
 
@@ -707,7 +807,7 @@ function setupFormEvents() {
       return;
     }
 
-    const security = resolveCategorySecurity({
+    const security = await resolveCategorySecurity({
       confidentiality,
       password,
       messageEl,
@@ -868,9 +968,13 @@ function setupFormEvents() {
         return;
       }
 
-      const isConfirmed = window.confirm(
-        buildDeleteConfirmationMessage(selectedCategories)
-      );
+      const isConfirmed = await showCategoryConfirmModal({
+        title: "Supprimer la sélection ?",
+        message: buildDeleteConfirmationMessage(selectedCategories),
+        confirmLabel: "Supprimer",
+        cancelLabel: "Annuler",
+        danger: true,
+      });
 
       if (!isConfirmed) return;
 
@@ -983,7 +1087,7 @@ function setupFormEvents() {
         return;
       }
 
-      const security = resolveEditCategorySecurity({
+      const security = await resolveEditCategorySecurity({
         selectedCategory,
         confidentiality,
         password,
@@ -1008,10 +1112,25 @@ function setupFormEvents() {
           }),
         });
 
-        currentMode = "view";
-        editingCategoryId = null;
+        if (data && data.category) {
+          categories = categories.map((category) =>
+            String(category.id_category) === String(editingCategoryId)
+              ? data.category
+              : category
+          );
+          syncDefaultCategoryState();
+          syncCategoryOrderState();
+        }
+
         clearDeleteSelection();
-        await loadCategories(data.message || "Catégorie mise à jour avec succès.", "success");
+        actionMessage = "";
+        actionMessageType = "";
+        renderPage();
+        setInlineMessage(
+          document.getElementById("inlineEditMessage"),
+          data.message || "Catégorie mise à jour avec succès.",
+          "success"
+        );
       } catch (error) {
         setInlineMessage(
           inlineEditMessage,

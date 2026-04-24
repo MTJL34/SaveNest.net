@@ -5,6 +5,12 @@ import {
   setHeader,
   setFooter,
 } from "./layout.js";
+import {
+  getApiBaseUrl,
+  getAppBaseUrl,
+  getServerUnavailableMessage,
+} from "./apiConfig.js";
+import { enhancePasswordFields } from "./passwordVisibility.js";
 
 setHeader();
 setFooter();
@@ -64,10 +70,15 @@ const languageCheckboxes = Array.from(
   document.querySelectorAll('.signup-form input[name="spoken_languages"]')
 );
 
-const API_BASE_URL = "http://localhost:3000/api";
-const APP_BASE_URL = new URL("/", API_BASE_URL).href;
+enhancePasswordFields();
+
+const API_BASE_URL = getApiBaseUrl();
+const APP_BASE_URL = getAppBaseUrl();
 const HOME_PAGE_URL = new URL("html/index.html", APP_BASE_URL).href;
 const LOGIN_PAGE_URL = new URL("html/connexion.html", APP_BASE_URL).href;
+const LOGIN_REASON_QUERY_KEY = "reason";
+const AUTH_REQUIRED_REASON = "auth-required";
+const LOGGED_OUT_REASON = "logged-out";
 const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
 const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
@@ -79,6 +90,15 @@ function normalizeAuthPageOrigin() {
 
   if (window.location.origin === destinationUrl.origin) {
     return;
+  }
+
+  const currentUrl = new URL(window.location.href);
+  const loginReason = currentUrl.searchParams.get(LOGIN_REASON_QUERY_KEY);
+
+  if (loginReason === AUTH_REQUIRED_REASON) {
+    destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, AUTH_REQUIRED_REASON);
+  } else if (loginReason === LOGGED_OUT_REASON) {
+    destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, LOGGED_OUT_REASON);
   }
 
   destinationUrl.hash = window.location.hash === "#signup" ? "#signup" : "#login";
@@ -93,6 +113,30 @@ function getModeFromHash() {
   }
 
   return "login";
+}
+
+function showLoginReasonMessage() {
+  const currentUrl = new URL(window.location.href);
+  const loginReason = currentUrl.searchParams.get(LOGIN_REASON_QUERY_KEY);
+
+  if (loginReason !== AUTH_REQUIRED_REASON && loginReason !== LOGGED_OUT_REASON) {
+    return;
+  }
+
+  setActiveMode("login", { updateHash: false });
+  setFeedback(
+    loginFeedbackEl,
+    loginReason === LOGGED_OUT_REASON
+      ? "Déconnexion réussie."
+      : "Vous devez être connecté pour accéder au site.",
+    loginReason === LOGGED_OUT_REASON ? "success" : "error"
+  );
+  currentUrl.searchParams.delete(LOGIN_REASON_QUERY_KEY);
+  window.history.replaceState(
+    null,
+    "",
+    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+  );
 }
 
 function updateAside(mode) {
@@ -422,6 +466,7 @@ document.addEventListener("keydown", (event) => {
 syncLanguageCheckboxesFromStorage();
 syncLanguageOptionStates();
 setActiveMode(getModeFromHash(), { updateHash: false });
+showLoginReasonMessage();
 
 inlineSwitchButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -511,11 +556,7 @@ if (loginForm) {
       }, 500);
     } catch (error) {
       console.error("Erreur lors de la connexion :", error);
-      setFeedback(
-        loginFeedbackEl,
-        "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.",
-        "error"
-      );
+      setFeedback(loginFeedbackEl, getServerUnavailableMessage(), "error");
     } finally {
       setSubmitState(loginForm, false, "Se connecter", "Connexion...");
     }
@@ -609,11 +650,7 @@ if (signupForm) {
       );
     } catch (error) {
       console.error("Erreur lors de l'inscription :", error);
-      setFeedback(
-        signupFeedbackEl,
-        "Le serveur est injoignable. Vérifiez que le backend tourne bien sur le port 3000.",
-        "error"
-      );
+      setFeedback(signupFeedbackEl, getServerUnavailableMessage(), "error");
     } finally {
       setSubmitState(signupForm, false, "Créer mon compte", "Inscription...");
     }

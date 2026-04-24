@@ -1,5 +1,6 @@
 /* Styles de la page de connexion et d'inscription. */
 @import url("./layout.css");
+@import url("./passwordToggle.css");
 
 * {
   margin: 0;
@@ -37,7 +38,7 @@ body {
 }
 
 .auth-aside {
-  background: linear-gradient(150deg, #694024 0%, #85512d 45%, #a36a3f 100%);
+  background: var(--sn-brand);
   color: #fff;
   padding: 1.8rem 1.65rem;
   display: grid;
@@ -555,7 +556,35 @@ body {
 @media (max-width: 640px) {
   .auth-page {
     width: min(100%, 94%);
-    margin: 1.15rem auto 1.8rem;
+    margin: 0.9rem auto 1.4rem;
+  }
+
+  .auth-shell {
+    border-radius: var(--sn-radius-lg);
+  }
+
+  .auth-aside {
+    padding: 1rem;
+  }
+
+  .auth-aside h1 {
+    font-size: 1.35rem;
+  }
+
+  .auth-points {
+    font-size: 0.88rem;
+  }
+
+  .auth-card {
+    padding: 1rem 0.85rem;
+  }
+
+  .auth-switch {
+    border-radius: var(--sn-radius-md);
+  }
+
+  .auth-switch-btn {
+    border-radius: var(--sn-radius-sm);
   }
 
   .options {
@@ -565,5 +594,9 @@ body {
 
   .languages-trigger {
     min-height: 48px;
+  }
+
+  .social-auth button {
+    min-height: 42px;
   }
 }

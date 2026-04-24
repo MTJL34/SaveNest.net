@@ -1,33 +1,57 @@
-// Ce controleur gere l'inscription, la connexion et la gestion des utilisateurs.
+// Ce controleur regroupe toute la logique liee a l'authentification
+// et a la gestion basique des utilisateurs.
+// Pour un debutant, on peut le lire comme une suite de petites etapes :
+// 1. nettoyer les donnees recues depuis la requete HTTP,
+// 2. verifier qu'elles sont valides,
+// 3. lire ou ecrire en base de donnees,
+// 4. renvoyer une reponse JSON claire au front.
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import connection from "../config/database.js";
 import { ROLE_CODES } from "../middlewares/auth.js";
 
+// Par defaut, un nouvel utilisateur recoit le role "utilisateur classique".
+// On garde cette valeur dans une constante pour eviter de "cacher" le chiffre 2
+// au milieu du code metier.
 const DEFAULT_ROLE_ID = 2;
 
-// Ces petites fonctions nettoient les donnees recues avant de les utiliser.
+// Ces petites fonctions servent a valider et normaliser les donnees
+// avant de les utiliser dans la logique metier ou dans les requetes SQL.
 const parsePositiveId = (value) => {
+  // Number(...) tente de convertir la valeur recue en nombre.
+  // Exemple : "5" devient 5, alors que "abc" devient NaN.
   const id = Number(value);
+
+  // On n'accepte que des entiers strictement positifs pour les identifiants.
+  // Si la valeur est incorrecte, on renvoie null pour signaler "ID invalide".
   if (!Number.isInteger(id) || id <= 0) return null;
   return id;
 };
 
 const parseOptionalPositiveId = (value) => {
+  // Cas 1 : le champ n'a pas ete envoye dans la requete.
+  // On renvoie "undefined" pour dire "ne pas modifier la valeur actuelle".
   if (value === undefined) {
     return { value: undefined, invalid: false };
   }
 
+  // Cas 2 : l'utilisateur envoie explicitement null.
+  // Ici on garde null, ce qui signifie souvent "retirer la valeur".
   if (value === null) {
     return { value: null, invalid: false };
   }
 
+  // Cas 3 : le front envoie une chaine vide.
+  // On la traite comme null pour eviter d'enregistrer "" en base.
   if (typeof value === "string" && value.trim() === "") {
     return { value: null, invalid: false };
   }
 
   const parsedId = parsePositiveId(value);
 
+  // Si la conversion echoue, on ne leve pas directement une erreur ici :
+  // on renvoie un objet qui permettra a la route appelante de choisir
+  // la bonne reponse HTTP.
   if (!parsedId) {
     return { value: null, invalid: true };
   }
@@ -36,18 +60,27 @@ const parseOptionalPositiveId = (value) => {
 };
 
 function normalizeText(value) {
+  // Cette fonction garantit qu'on manipule toujours une chaine propre.
+  // Si la valeur n'est pas une chaine, on renvoie une chaine vide.
   if (typeof value !== "string") {
     return "";
   }
 
+  // trim() supprime les espaces au debut et a la fin.
+  // Cela evite par exemple qu'un pseudo " Alice " soit enregistre
+  // differemment de "Alice".
   return value.trim();
 }
 
 function normalizeMail(value) {
+  // Un email est compare en minuscules pour eviter qu'un meme compte soit vu
+  // comme different entre "Test@Mail.com" et "test@mail.com".
   return normalizeText(value).toLowerCase();
 }
 
 function isAdminUser(user) {
+  // Une petite protection defensive :
+  // si aucun utilisateur authentifie n'est disponible, il ne peut pas etre admin.
   if (!user) {
     return false;
   }
@@ -55,6 +88,8 @@ function isAdminUser(user) {
   return user.role_code === ROLE_CODES.ADMIN;
 }
 
+// Un mot de passe chiffre avec bcrypt suit une forme tres precise.
+// Cette expression reguliere permet de reconnaitre rapidement ce format.
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 function isBcryptHash(value) {
@@ -62,7 +97,10 @@ function isBcryptHash(value) {
 }
 
 async function verifyStoredPassword(rawPassword, storedPassword) {
-  // On accepte temporairement l'ancien format en clair, puis on le remplace apres connexion.
+  // Transition legacy :
+  // l'application accepte encore temporairement les anciens mots de passe
+  // stockes en clair. Si la connexion reussit avec cet ancien format,
+  // on indiquera plus bas qu'il faut "upgrader" ce mot de passe vers bcrypt.
   if (typeof storedPassword !== "string" || storedPassword === "") {
     return { isValid: false, needsUpgrade: false };
   }
@@ -78,11 +116,14 @@ async function verifyStoredPassword(rawPassword, storedPassword) {
 
   return {
     isValid: isLegacyPlainTextMatch,
+    // Si la comparaison en clair fonctionne, on demandera un rehachage.
     needsUpgrade: isLegacyPlainTextMatch,
   };
 }
 
 function normalizeSpokenLanguages(value) {
+  // On attend un tableau provenant du front.
+  // Toute autre forme est consideree comme vide.
   if (!Array.isArray(value)) {
     return [];
   }
@@ -90,12 +131,16 @@ function normalizeSpokenLanguages(value) {
   const normalizedLanguages = [];
 
   for (let index = 0; index < value.length; index += 1) {
+    // On nettoie chaque langue une par une.
     const normalizedLanguage = normalizeText(value[index]);
 
+    // On ignore les valeurs vides.
     if (!normalizedLanguage) {
       continue;
     }
 
+    // On evite les doublons pour ne pas creer deux fois la meme relation
+    // en base de donnees.
     if (normalizedLanguages.includes(normalizedLanguage)) {
       continue;
     }
@@ -106,6 +151,9 @@ function normalizeSpokenLanguages(value) {
   return normalizedLanguages;
 }
 
+// Morceau de requete SQL reutilisable.
+// Il centralise les jointures necessaires pour recuperer un utilisateur
+// avec son role et sa date d'inscription.
 const userSelectQuery = `
   SELECT
     u.id_user,
@@ -122,6 +170,8 @@ const userSelectQuery = `
   INNER JOIN roles r ON r.id_role = u.id_role
 `;
 
+// Cette fonction retire les champs sensibles ou inutiles pour le client.
+// Par exemple, on n'expose jamais le mot de passe dans la reponse JSON.
 const sanitizeUser = (user) => ({
   id_user: user.id_user,
   pseudo: user.pseudo,
@@ -135,6 +185,8 @@ const sanitizeUser = (user) => ({
 });
 
 const getSpokenLanguagesByUserId = async (idUser) => {
+  // On recupere les langues parlees par un utilisateur via la table de liaison
+  // "speaking" qui relie user_ et language_.
   const [rows] = await connection.execute(
     `SELECT
       l.id_language,
@@ -151,6 +203,8 @@ const getSpokenLanguagesByUserId = async (idUser) => {
 };
 
 const buildPublicUser = async (user) => {
+  // On enrichit l'utilisateur "public" avec ses langues parlees.
+  // Le mot "public" signifie ici "pret a etre envoye au front".
   const spokenLanguages = await getSpokenLanguagesByUserId(user.id_user);
 
   return {
@@ -160,6 +214,8 @@ const buildPublicUser = async (user) => {
 };
 
 const buildPublicUsers = async (users) => {
+  // Version tableau de buildPublicUser.
+  // On parcourt les utilisateurs un par un pour construire la reponse finale.
   const publicUsers = [];
 
   for (let index = 0; index < users.length; index += 1) {
@@ -170,6 +226,8 @@ const buildPublicUsers = async (users) => {
 };
 
 const getJoinedUserById = async (idUser) => {
+  // On reutilise userSelectQuery pour garder la meme structure de donnees
+  // partout dans le controleur.
   const [rows] = await connection.execute(
     `${userSelectQuery}
     WHERE u.id_user = ?`,
@@ -180,6 +238,8 @@ const getJoinedUserById = async (idUser) => {
 };
 
 const getRawUserById = async (idUser) => {
+  // Version "brute" de l'utilisateur, utile quand on a besoin du mot de passe
+  // ou des IDs techniques sans jointures supplementaires.
   const [rows] = await connection.execute(
     "SELECT id_user, pseudo, mail, password, id_savenest, id_role, default_category_id FROM user_ WHERE id_user = ?",
     [idUser]
@@ -193,10 +253,12 @@ const ensureDefaultCategoryOwnedByUser = async ({
   defaultCategoryId,
   executor = connection,
 }) => {
+  // Si aucune categorie par defaut n'est definie, il n'y a rien a verifier.
   if (defaultCategoryId === null || defaultCategoryId === undefined) {
     return null;
   }
 
+  // On verifie d'abord que la categorie existe bien.
   const [rows] = await executor.execute(
     "SELECT id_category, id_user FROM category WHERE id_category = ? LIMIT 1",
     [defaultCategoryId]
@@ -209,6 +271,8 @@ const ensureDefaultCategoryOwnedByUser = async ({
     };
   }
 
+  // Ensuite, on verifie que cette categorie appartient bien a l'utilisateur.
+  // Cela empeche un utilisateur d'utiliser la categorie d'un autre.
   if (Number(rows[0].id_user) !== Number(idUser)) {
     return {
       status: 403,
@@ -223,6 +287,8 @@ const ensureForeignKeysExist = async (
   { id_savenest = null, id_role },
   executor = connection
 ) => {
+  // Chaque cle etrangere doit pointer vers une ligne existante.
+  // Ici on controle les references vers savenest puis vers roles.
   if (id_savenest !== null) {
     const [saveNestRows] = await executor.execute(
       "SELECT id_savenest FROM savenest WHERE id_savenest = ? LIMIT 1",
@@ -252,6 +318,9 @@ const findConflictingUser = async ({
   excludeId = null,
   executor = connection,
 }) => {
+  // On cherche si un autre utilisateur utilise deja le meme pseudo
+  // ou le meme email. Lors d'une mise a jour, excludeId permet d'ignorer
+  // l'utilisateur que l'on est en train de modifier.
   const values = [pseudo, mail];
   let query =
     "SELECT id_user, pseudo, mail FROM user_ WHERE (pseudo = ? OR mail = ?) LIMIT 1";
@@ -267,6 +336,8 @@ const findConflictingUser = async ({
 };
 
 const createSaveNestRecord = async (executor = connection) => {
+  // Certains utilisateurs ont besoin d'un espace SaveNest cree automatiquement
+  // au moment de l'inscription. Cette fonction isole cette creation.
   const [result] = await executor.execute(
     "INSERT INTO savenest (date_inscription) VALUES (CURRENT_TIMESTAMP)"
   );
@@ -279,12 +350,15 @@ const insertSpokenLanguages = async ({
   spokenLanguages,
   executor = connection,
 }) => {
+  // On commence par nettoyer la liste recue du front.
   const normalizedLanguages = normalizeSpokenLanguages(spokenLanguages);
 
   if (normalizedLanguages.length === 0) {
     return { status: 400, message: "Choisissez au moins une langue parlée." };
   }
 
+  // Exemple si normalizedLanguages = ["Francais", "Anglais"] :
+  // placeholders deviendra "?, ?" pour alimenter la clause IN (...).
   const placeholders = normalizedLanguages.map(() => "?").join(", ");
   const [rows] = await executor.execute(
     `SELECT id_language, language_name
@@ -293,6 +367,8 @@ const insertSpokenLanguages = async ({
     normalizedLanguages
   );
 
+  // Si on n'a pas retrouve autant de lignes que de langues demandees,
+  // cela signifie qu'au moins une langue envoyee par le front est inconnue.
   if (rows.length !== normalizedLanguages.length) {
     const foundNames = [];
     const missingLanguages = [];
@@ -323,6 +399,7 @@ const insertSpokenLanguages = async ({
     };
   }
 
+  // On cree ensuite la relation entre l'utilisateur et chaque langue.
   for (const row of rows) {
     await executor.execute(
       "INSERT INTO speaking (id_user, id_language) VALUES (?, ?)",
@@ -335,6 +412,8 @@ const insertSpokenLanguages = async ({
 
 export const getAllUsers = async (req, res) => {
   try {
+    // On recupere tous les utilisateurs, puis on les transforme
+    // dans un format public sans donnees sensibles.
     const [rows] = await connection.execute(
       `${userSelectQuery}
       ORDER BY u.id_user ASC`
@@ -351,6 +430,8 @@ export const getAllUsers = async (req, res) => {
 
 export const getUserById = async (req, res) => {
   try {
+    // Les parametres d'URL arrivent sous forme de chaine.
+    // On les convertit d'abord en entier exploitable.
     const idUser = parsePositiveId(req.params.id);
 
     if (!idUser) {
@@ -373,7 +454,11 @@ export const getUserById = async (req, res) => {
 };
 
 export const registerUser = async (req, res) => {
-  // L'inscription cree l'utilisateur, son espace SaveNest et ses langues parlees.
+  // Cette route d'inscription fait plusieurs choses d'un coup :
+  // 1. verifier les champs envoyes par le front,
+  // 2. creer ou reutiliser un espace SaveNest,
+  // 3. enregistrer l'utilisateur avec un mot de passe hache,
+  // 4. lier les langues parlees dans la table speaking.
   try {
     const {
       pseudo,
@@ -391,6 +476,7 @@ export const registerUser = async (req, res) => {
     const parsedSaveNest = hasProvidedSaveNest ? parsePositiveId(id_savenest) : null;
     const parsedRole = DEFAULT_ROLE_ID;
 
+    // Ici on bloque tout de suite les cas incomplets avant d'aller en base.
     if (!trimmedPseudo || !trimmedMail || !rawPassword) {
       return res.status(400).json({ message: "pseudo, mail et password sont obligatoires." });
     }
@@ -416,15 +502,22 @@ export const registerUser = async (req, res) => {
       return res.status(409).json({ message: "Ce pseudo est déjà utilisé." });
     }
 
+    // bcrypt.hash(...) transforme le mot de passe brut en hash securise.
+    // On ne stocke jamais le mot de passe en clair dans la base.
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
     const db = await connection.getConnection();
 
     try {
+      // Une transaction permet de dire :
+      // "soit toutes les operations reussissent, soit aucune n'est conservee".
+      // C'est utile ici car on cree potentiellement plusieurs lignes liees.
       await db.beginTransaction();
 
       let nextSaveNestId = parsedSaveNest;
 
       if (nextSaveNestId === null) {
+        // Si aucun espace SaveNest n'a ete fourni, on verifie d'abord que le role
+        // existe, puis on cree automatiquement un nouvel espace SaveNest.
         const roleError = await ensureForeignKeysExist(
           { id_savenest: null, id_role: parsedRole },
           db
@@ -437,6 +530,7 @@ export const registerUser = async (req, res) => {
 
         nextSaveNestId = await createSaveNestRecord(db);
       } else {
+        // Sinon, on controle simplement que les references envoyees existent.
         const foreignKeyError = await ensureForeignKeysExist(
           { id_savenest: nextSaveNestId, id_role: parsedRole },
           db
@@ -453,6 +547,8 @@ export const registerUser = async (req, res) => {
         [trimmedPseudo, trimmedMail, hashedPassword, nextSaveNestId, parsedRole]
       );
 
+      // Une fois l'utilisateur cree, on ajoute ses langues parlees
+      // dans la table de liaison.
       const languagesError = await insertSpokenLanguages({
         idUser: result.insertId,
         spokenLanguages: normalizedLanguages,
@@ -464,6 +560,7 @@ export const registerUser = async (req, res) => {
         return res.status(languagesError.status).json({ message: languagesError.message });
       }
 
+      // Si tout s'est bien passe, on valide definitivement la transaction.
       await db.commit();
 
       const createdUser = await getJoinedUserById(result.insertId);
@@ -474,9 +571,12 @@ export const registerUser = async (req, res) => {
         user: publicUser,
       });
     } catch (error) {
+      // Au moindre probleme, on annule toutes les ecritures faites
+      // depuis beginTransaction().
       await db.rollback();
       throw error;
     } finally {
+      // On libere toujours la connexion empruntee au pool.
       db.release();
     }
   } catch (error) {
@@ -522,6 +622,8 @@ export const updateUser = async (req, res) => {
     );
     const nextDefaultCategory = parsedDefaultCategory.value;
 
+    // Chaque valeur "next..." represente l'etat final souhaite apres la mise a jour.
+    // Si un champ n'est pas fourni dans la requete, on conserve la valeur existante.
     if (!nextPseudo || !nextMail) {
       return res.status(400).json({ message: "pseudo et mail ne peuvent pas être vides." });
     }
@@ -546,6 +648,8 @@ export const updateUser = async (req, res) => {
       });
     }
 
+    // Un mot de passe vide n'a pas de sens. En revanche, null signifie
+    // "ne pas changer le mot de passe".
     if (nextPasswordRaw !== null && nextPasswordRaw.trim() === "") {
       return res.status(400).json({ message: "password ne peut pas être vide." });
     }
@@ -584,6 +688,8 @@ export const updateUser = async (req, res) => {
       return res.status(409).json({ message: "Ce pseudo est déjà utilisé." });
     }
 
+    // Si un nouveau mot de passe est fourni, on le hache.
+    // Sinon, on garde simplement le hash deja stocke.
     const nextPassword =
       nextPasswordRaw === null ? existingUser.password : await bcrypt.hash(nextPasswordRaw, 10);
 
@@ -627,7 +733,12 @@ export const deleteUser = async (req, res) => {
 };
 
 export const loginUser = async (req, res) => {
-  // La connexion accepte soit l'email, soit le pseudo.
+  // La connexion accepte soit un email, soit un pseudo dans le champ identifier.
+  // Cette route :
+  // 1. choisit le bon identifiant,
+  // 2. retrouve l'utilisateur,
+  // 3. verifie le mot de passe,
+  // 4. retourne un token JWT si tout est correct.
   try {
     const { identifier, mail, pseudo, password } = req.body;
     const rawIdentifier =
@@ -646,6 +757,8 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    // On cherche par email en minuscules ou par pseudo exact.
+    // LIMIT 1 garantit qu'on ne prend au maximum qu'un seul utilisateur.
     const [rows] = await connection.execute(
       `SELECT id_user, pseudo, mail, password, id_savenest, id_role
       FROM user_
@@ -665,6 +778,8 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Identifiants invalides." });
     }
 
+    // Cas legacy : si l'ancien mot de passe en clair a fonctionne,
+    // on en profite pour le remplacer immediatement par un hash bcrypt.
     if (passwordCheck.needsUpgrade) {
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
@@ -676,6 +791,9 @@ export const loginUser = async (req, res) => {
 
     const fullUser = await getJoinedUserById(user.id_user);
     const secret = process.env.JWT_SECRET || "dev_secret_change_me";
+
+    // Le JWT contient les infos minimales utiles pour reconnaitre l'utilisateur
+    // sur les prochaines requetes authentifiees.
     const token = jwt.sign(
       {
         id_user: fullUser.id_user,
@@ -700,5 +818,7 @@ export const loginUser = async (req, res) => {
 };
 
 export const logoutUser = async (req, res) => {
+  // Ici, rien n'est a supprimer cote serveur car le JWT est gere cote client.
+  // On renvoie simplement une confirmation au front.
   return res.status(200).json({ message: "Déconnexion réussie (côté client)." });
 };

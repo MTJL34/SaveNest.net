@@ -1,12 +1,22 @@
 // Ce fichier construit le header, le footer et la gestion des langues cote front.
+import { getApiBaseUrl } from "./apiConfig.js";
+
 export const USER_LANGUAGES_STORAGE_KEY = "savenest_user_languages";
 export const ACTIVE_LANGUAGE_STORAGE_KEY = "savenest_active_language";
 
+const API_BASE_URL = getApiBaseUrl();
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
+const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
 const AUTH_TRANSFER_TOKEN_QUERY_KEY = "sn_token";
 const AUTH_TRANSFER_USER_QUERY_KEY = "sn_user";
+const LOGIN_REASON_QUERY_KEY = "reason";
+const LOGGED_OUT_REASON = "logged-out";
+const HEADER_EGG_OPEN_SRC = "../img/egg-1.gif";
+const HEADER_EGG_CLOSED_SRC = "../img/egg-full.png";
+
+let isHeaderEggOpen = true;
 
 // Cette configuration centralise les libelles visibles dans le header.
 const LANGUAGE_CONFIG = {
@@ -20,6 +30,7 @@ const LANGUAGE_CONFIG = {
       categories: "Catégories",
       about: "À propos",
       login: "Connexion",
+      logout: "Déconnexion",
       language: "Langue",
     },
   },
@@ -33,6 +44,7 @@ const LANGUAGE_CONFIG = {
       categories: "Categories",
       about: "About",
       login: "Login",
+      logout: "Logout",
       language: "Language",
     },
   },
@@ -46,6 +58,7 @@ const LANGUAGE_CONFIG = {
       categories: "Categorías",
       about: "Acerca de",
       login: "Conexión",
+      logout: "Desconexión",
       language: "Idioma",
     },
   },
@@ -59,6 +72,7 @@ const LANGUAGE_CONFIG = {
       categories: "Kategorien",
       about: "Über uns",
       login: "Anmeldung",
+      logout: "Abmelden",
       language: "Sprache",
     },
   },
@@ -72,6 +86,7 @@ const LANGUAGE_CONFIG = {
       categories: "カテゴリ",
       about: "概要",
       login: "ログイン",
+      logout: "ログアウト",
       language: "言語",
     },
   },
@@ -336,14 +351,130 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
           ${languageOptionsMarkup}
         </select>
       </div>
+      <button
+        type="button"
+        class="header-egg-toggle js_headerEggToggle"
+        aria-label="Fermer l'œuf"
+        aria-pressed="true"
+      >
+        <img src="${HEADER_EGG_OPEN_SRC}" alt="" class="header-egg-img js_headerEggImg" aria-hidden="true">
+      </button>
       <ul>
         <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
         <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
         <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
-        <li><a href="../html/connexion.html">${currentLanguage.header.login}</a></li>
+        <li>
+          <button type="button" class="header-logout-btn js_logoutBtn">
+            ${currentLanguage.header.logout}
+          </button>
+        </li>
       </ul>
     </nav>
   `;
+}
+
+function clearAuthSession() {
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  localStorage.removeItem(DEFAULT_CATEGORY_STORAGE_KEY);
+  sessionStorage.removeItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
+}
+
+function redirectAfterLogout() {
+  const destinationUrl = new URL("../html/connexion.html", window.location.href);
+  destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, LOGGED_OUT_REASON);
+  destinationUrl.hash = "#login";
+  window.location.assign(destinationUrl.href);
+}
+
+async function notifyLogoutEndpoint(token) {
+  if (!token) {
+    return;
+  }
+
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    // La deconnexion locale reste prioritaire meme si le serveur est indisponible.
+  }
+}
+
+function showLogoutConfirmModal() {
+  return new Promise((resolve) => {
+    const modalEl = document.createElement("div");
+    modalEl.className = "logout-modal";
+    modalEl.innerHTML = `
+      <div class="logout-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <button type="button" class="logout-modal__close" data-logout-cancel aria-label="Fermer">×</button>
+        <p class="logout-modal__eyebrow">SaveNest</p>
+        <h2 id="logoutModalTitle">Déconnexion</h2>
+        <p class="logout-modal__text">Voulez-vous vraiment vous déconnecter ?</p>
+        <div class="logout-modal__actions">
+          <button type="button" class="logout-modal__cancel" data-logout-cancel>Non</button>
+          <button type="button" class="logout-modal__submit" data-logout-confirm>Oui</button>
+        </div>
+      </div>
+    `;
+
+    const cancelButtons = Array.from(modalEl.querySelectorAll("[data-logout-cancel]"));
+    const confirmButton = modalEl.querySelector("[data-logout-confirm]");
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal(false);
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal(false);
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => {
+        closeModal(false);
+      });
+    }
+
+    if (confirmButton) {
+      confirmButton.addEventListener("click", () => {
+        closeModal(true);
+      });
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+
+    if (confirmButton) {
+      confirmButton.focus();
+    }
+  });
+}
+
+async function handleLogout() {
+  const shouldLogout = await showLogoutConfirmModal();
+
+  if (!shouldLogout) {
+    return;
+  }
+
+  const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+
+  clearAuthSession();
+  notifyLogoutEndpoint(token);
+  redirectAfterLogout();
 }
 
 const initialLanguages = getStoredUserLanguages();
@@ -383,12 +514,42 @@ function renderHeader(headerEl) {
   document.documentElement.lang = activeLanguageConfig.code;
 
   const languageSwitcher = headerEl.querySelector(".js_language_switcher");
+  const eggToggle = headerEl.querySelector(".js_headerEggToggle");
+  const eggImg = headerEl.querySelector(".js_headerEggImg");
+  const logoutBtn = headerEl.querySelector(".js_logoutBtn");
 
   if (languageSwitcher) {
     languageSwitcher.addEventListener("change", function handleLanguageChange(event) {
       localStorage.setItem(ACTIVE_LANGUAGE_STORAGE_KEY, event.target.value);
       renderHeader(headerEl);
     });
+  }
+
+  function syncHeaderEgg() {
+    if (!eggToggle || !eggImg) {
+      return;
+    }
+
+    eggImg.src = isHeaderEggOpen ? HEADER_EGG_OPEN_SRC : HEADER_EGG_CLOSED_SRC;
+    eggToggle.setAttribute("aria-pressed", String(isHeaderEggOpen));
+    eggToggle.setAttribute(
+      "aria-label",
+      isHeaderEggOpen ? "Fermer l'œuf" : "Ouvrir l'œuf"
+    );
+    eggToggle.classList.toggle("is-open", isHeaderEggOpen);
+  }
+
+  syncHeaderEgg();
+
+  if (eggToggle) {
+    eggToggle.addEventListener("click", function handleHeaderEggClick() {
+      isHeaderEggOpen = !isHeaderEggOpen;
+      syncHeaderEgg();
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", handleLogout);
   }
 
   markLayoutReady();
