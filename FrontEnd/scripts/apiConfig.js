@@ -3,11 +3,16 @@
 
 const FALLBACK_APP_ORIGIN = "http://localhost:3000";
 const FALLBACK_API_PORT = "3000";
+
+// Ces constantes rendent le fichier adaptable :
+// le site peut etre ouvert depuis Express, Live Server ou un autre port local.
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const LOCAL_FRONTEND_PORTS = new Set(["4200", "4173", "5173", "5500", "8080", "8081"]);
 const FRONTEND_DIRECTORIES = new Set(["html", "css", "scripts", "img", "data"]);
 
 function isHttpContext() {
+  // Quand on ouvre un fichier en file://, window.location existe mais il n'y a pas
+  // d'origine HTTP fiable. On utilise alors les valeurs de secours.
   return (
     typeof window !== "undefined" &&
     window.location &&
@@ -17,6 +22,9 @@ function isHttpContext() {
 }
 
 function getConfiguredApiOrigin() {
+  // Methode 1 : le HTML peut definir window.__SAVENEST_API_ORIGIN__.
+  // Methode 2 : le HTML peut definir une balise meta savenest-api-origin.
+  // Si rien n'est defini, on laisse la fonction suivante deviner.
   if (typeof window === "undefined") {
     return "";
   }
@@ -47,6 +55,7 @@ function getConfiguredApiOrigin() {
 }
 
 function getAppOrigin() {
+  // Origine du site actuel, par exemple http://localhost:3000.
   if (isHttpContext()) {
     return window.location.origin;
   }
@@ -55,6 +64,7 @@ function getAppOrigin() {
 }
 
 function getCurrentPathname() {
+  // Chemin actuel dans l'URL, par exemple /html/fav.html.
   if (!isHttpContext()) {
     return "/";
   }
@@ -76,6 +86,8 @@ function getCurrentPathname() {
 }
 
 function buildBasePathFromSegments(pathSegments, endIndexExclusive) {
+  // Reconstruit un chemin propre a partir de morceaux d'URL.
+  // Exemple : ["FrontEnd", "html", "fav.html"] avec index 1 donne /FrontEnd/.
   if (endIndexExclusive <= 0) {
     return "/";
   }
@@ -84,6 +96,8 @@ function buildBasePathFromSegments(pathSegments, endIndexExclusive) {
 }
 
 function inferAppBasePath() {
+  // Cette fonction sert aux liens du header/footer.
+  // Elle evite que les liens cassent si le projet est servi depuis un sous-dossier.
   const pathname = getCurrentPathname();
 
   if (pathname === "/") {
@@ -120,6 +134,7 @@ function inferAppBasePath() {
 }
 
 function getLocalDevelopmentApiOrigin() {
+  // Cas typique : front sur Live Server port 5500, backend Express sur 3000.
   if (!isHttpContext()) {
     return "";
   }
@@ -138,6 +153,10 @@ function getLocalDevelopmentApiOrigin() {
 }
 
 function getApiOrigin() {
+  // Ordre de priorite :
+  // 1. configuration explicite,
+  // 2. detection d'un front local separe,
+  // 3. meme origine que la page.
   const configuredOrigin = getConfiguredApiOrigin();
 
   if (configuredOrigin) {
@@ -154,14 +173,17 @@ function getApiOrigin() {
 }
 
 export function getApiBaseUrl() {
+  // Toutes les pages front appellent cette fonction pour construire leurs fetch().
   return new URL("/api", `${getApiOrigin()}/`).href;
 }
 
 export function getAppBaseUrl() {
+  // Base utilisee pour fabriquer des liens internes robustes.
   return new URL(inferAppBasePath(), `${getAppOrigin()}/`).href;
 }
 
 export function getServerUnavailableMessage() {
+  // Message commun quand fetch echoue parce que le backend n'est pas lance.
   const apiOrigin = new URL(getApiBaseUrl()).origin;
   return `Le serveur est injoignable. Vérifiez que le backend tourne bien sur ${apiOrigin}.`;
 }

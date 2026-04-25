@@ -19,9 +19,12 @@ import {
 const router = express.Router();
 
 function getRouteUserId(req) {
+  // Les routes /:id mettent l'identifiant utilisateur dans req.params.id.
+  // Cette petite fonction permet a requireSelfOrRole de rester reutilisable.
   return req.params.id;
 }
 
+// Liste des utilisateurs : reservee aux roles qui gerent le projet.
 router.get(
   "/",
   requireAuth,
@@ -29,10 +32,14 @@ router.get(
   getAllUsers
 );
 
+// Inscription et connexion : pas besoin d'etre connecte avant de les appeler.
 router.post("/register", registerUser);
 router.post("/login", loginUser);
+
+// Deconnexion : le front supprime surtout son token, mais cette route garde une API claire.
 router.get("/logout", requireAuth, logoutUser);
 
+// Lire un utilisateur : l'utilisateur lui-meme, un admin ou un moderateur.
 router.get(
   "/:id",
   requireAuth,
@@ -40,6 +47,7 @@ router.get(
   getUserById
 );
 
+// Modifier un utilisateur : l'utilisateur lui-meme ou un admin.
 router.patch(
   "/:id",
   requireAuth,
@@ -47,6 +55,7 @@ router.patch(
   updateUser
 );
 
+// Supprimer un utilisateur : action sensible, reservee aux admins.
 router.delete("/:id", requireAuth, requireRole(ROLE_CODES.ADMIN), deleteUser);
 
 export default router;

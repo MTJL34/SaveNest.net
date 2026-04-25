@@ -4,6 +4,8 @@ import { isPrivilegedUser } from "../middlewares/auth.js";
 
 // Les fonctions suivantes servent a reutiliser la meme logique dans plusieurs routes.
 function parsePositiveId(value) {
+  // Les IDs arrivent souvent sous forme de texte depuis l'URL.
+  // On les convertit et on refuse les valeurs qui ne sont pas des entiers positifs.
   const id = Number(value);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -14,10 +16,12 @@ function parsePositiveId(value) {
 }
 
 function canAccessUserOwnedResource(req, ownerId) {
+  // Admin et moderateur peuvent acceder aux ressources de tous les utilisateurs.
   if (isPrivilegedUser(req.authUser)) {
     return true;
   }
 
+  // Un utilisateur classique doit posseder la ressource.
   if (!req.authUser) {
     return false;
   }
@@ -26,6 +30,8 @@ function canAccessUserOwnedResource(req, ownerId) {
 }
 
 function parseConfidentiality(value, fallback = 0) {
+  // La base attend 0 ou 1, mais le front peut envoyer plusieurs formats.
+  // Cette fonction transforme tout en 0, 1 ou null si la valeur est invalide.
   if (value === undefined) {
     return fallback;
   }
@@ -42,6 +48,7 @@ function parseConfidentiality(value, fallback = 0) {
 }
 
 function toPublicCategory(row) {
+  // Important : on ne renvoie jamais le mot de passe d'une categorie au navigateur.
   return {
     id_category: row.id_category,
     category_name: row.category_name,
@@ -51,6 +58,7 @@ function toPublicCategory(row) {
 }
 
 async function getCategoryRowById(idCategory) {
+  // Fonction interne : elle recupere aussi le mot de passe pour les verifications.
   const [rows] = await connection.execute(
     "SELECT id_category, category_name, confidentiality, password, id_user FROM category WHERE id_category = ?",
     [idCategory]
@@ -64,6 +72,7 @@ async function getCategoryRowById(idCategory) {
 }
 
 async function userExists(idUser) {
+  // Verification simple pour eviter de relier une categorie a un utilisateur inexistant.
   const [rows] = await connection.execute(
     "SELECT id_user FROM user_ WHERE id_user = ? LIMIT 1",
     [idUser]
@@ -74,11 +83,13 @@ async function userExists(idUser) {
 
 export async function getAllCategories(req, res) {
   try {
+    // Par defaut, un utilisateur ne voit que ses propres categories.
     let query =
       "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_user = ? ORDER BY id_category ASC";
     let values = [req.authUser.id_user];
 
     if (isPrivilegedUser(req.authUser)) {
+      // Admin/moderateur : ils peuvent voir toutes les categories.
       query =
         "SELECT id_category, category_name, confidentiality, id_user FROM category ORDER BY id_category ASC";
       values = [];
@@ -87,6 +98,7 @@ export async function getAllCategories(req, res) {
     const [rows] = await connection.execute(query, values);
     const publicCategories = [];
 
+    // Boucle volontairement explicite pour un lecteur debutant.
     for (let index = 0; index < rows.length; index += 1) {
       publicCategories.push(toPublicCategory(rows[index]));
     }
@@ -100,18 +112,21 @@ export async function getAllCategories(req, res) {
 
 export async function getCategoryById(req, res) {
   try {
+    // Etape 1 : verifier l'identifiant recu dans l'URL.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {
       return res.status(400).json({ message: "ID de catégorie invalide." });
     }
 
+    // Etape 2 : recuperer la categorie complete en base.
     const category = await getCategoryRowById(id);
 
     if (!category) {
       return res.status(404).json({ message: "Catégorie introuvable." });
     }
 
+    // Etape 3 : refuser l'acces si la categorie appartient a quelqu'un d'autre.
     if (!canAccessUserOwnedResource(req, category.id_user)) {
       return res.status(403).json({ message: "Accès refusé." });
     }
@@ -126,6 +141,7 @@ export async function getCategoryById(req, res) {
 export async function createCategory(req, res) {
   // Une categorie privee doit toujours avoir un mot de passe.
   try {
+    // On nettoie les champs recus avant toute verification ou requete SQL.
     const body = req.body;
     const categoryName =
       typeof body.category_name === "string" ? body.category_name.trim() : "";
@@ -151,6 +167,7 @@ export async function createCategory(req, res) {
     }
 
     if (confidentialValue === 1 && !password) {
+      // Sans mot de passe, une categorie privee ne protegerait rien.
       return res.status(400).json({
         message: "Un mot de passe est requis pour une catégorie confidentielle.",
       });
@@ -163,6 +180,7 @@ export async function createCategory(req, res) {
     }
 
     const [result] = await connection.execute(
+      // Les points d'interrogation sont remplaces par MySQL de facon securisee.
       "INSERT INTO category (category_name, confidentiality, password, id_user) VALUES (?, ?, ?, ?)",
       [categoryName, confidentialValue, confidentialValue === 1 ? password : null, nextIdUser]
     );
@@ -181,6 +199,7 @@ export async function createCategory(req, res) {
 
 export async function updateCategory(req, res) {
   try {
+    // On lit d'abord l'ancienne categorie pour garder les champs non modifies.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {
@@ -198,6 +217,7 @@ export async function updateCategory(req, res) {
     }
 
     const body = req.body;
+    // Pour chaque champ : undefined signifie "ne pas changer cette valeur".
     const nextCategoryName =
       body.category_name === undefined
         ? currentCategory.category_name
@@ -237,6 +257,7 @@ export async function updateCategory(req, res) {
     }
 
     if (currentConfidentiality === 1) {
+      // Pour une categorie deja privee, le mot de passe actuel confirme l'action.
       if (!submittedPassword) {
         if (nextConfidentiality === 0) {
           return res.status(400).json({
@@ -279,6 +300,7 @@ export async function updateCategory(req, res) {
     }
 
     await connection.execute(
+      // Toutes les validations sont passees : on applique la modification.
       "UPDATE category SET category_name = ?, confidentiality = ?, password = ?, id_user = ? WHERE id_category = ?",
       [nextCategoryName, nextConfidentiality, nextPassword, nextIdUser, id]
     );
@@ -297,6 +319,7 @@ export async function updateCategory(req, res) {
 
 export async function deleteCategory(req, res) {
   try {
+    // La suppression suit le meme schema : ID valide, ressource existante, droit d'acces.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {
@@ -324,6 +347,7 @@ export async function deleteCategory(req, res) {
 
 export async function unlockCategory(req, res) {
   try {
+    // Cette route ne change pas la base : elle verifie juste le mot de passe.
     const id = parsePositiveId(req.params.id);
     const submittedPassword =
       typeof req.body.password === "string" ? req.body.password.trim() : "";

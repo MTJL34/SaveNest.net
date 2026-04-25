@@ -6,6 +6,8 @@ import { enhancePasswordFields } from "./passwordVisibility.js";
 const API_BASE_URL = getApiBaseUrl();
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
+// Ancienne cle nettoyee a la sortie de page.
+// Les categories privees deverrouillees restent maintenant en memoire uniquement.
 const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
 const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
 const FAVORITE_ORDER_STORAGE_KEY = "savenest_favorite_order";
@@ -14,13 +16,17 @@ const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 setHeader();
 setFooter();
 
-// Etat central de la page favoris : listes, catégories ouvertes, ordre local et mode actif.
+// Etat central de la page favoris :
+// - categories et favorites viennent de l'API,
+// - les selections servent aux formulaires,
+// - les ordres locaux servent au drag and drop,
+// - unlockedCategoryIds reste volontairement en memoire pour la securite.
 let categories = [];
 let favorites = [];
 let selectedEditFavId = "";
 let selectedEditFavIds = new Set();
 let selectedDeleteFavId = "";
-let unlockedCategoryIds = loadUnlockedCategories();
+let unlockedCategoryIds = new Set();
 let expandedEditCategoryIds = new Set();
 let expandedDeleteCategoryIds = new Set();
 let categoryOrderIds = loadCategoryOrder();
@@ -192,8 +198,12 @@ const html = `
   </section>
 `;
 
+// La page fav.html contient seulement les emplacements header/main/footer.
+// Tout le contenu principal est injecte ici pour garder la logique au meme endroit.
 document.querySelector(".js_main").innerHTML = html;
 
+// References DOM.
+// Les garder groupees en haut evite de refaire des querySelector partout.
 const favForm = document.getElementById("favForm");
 const favTitle = document.getElementById("favTitle");
 const favUrl = document.getElementById("favUrl");
@@ -234,35 +244,23 @@ const editSubmitButton = editFavForm.querySelector('button[type="submit"]');
 const deleteSubmitButton = deleteFavForm.querySelector('button[type="submit"]');
 
 function getAuthToken() {
+  // Recupere le token JWT stocke apres connexion.
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
 
 function redirectToLogin() {
+  // Utilise quand le token manque ou expire.
   window.location.assign("../html/connexion.html#login");
 }
 
-function loadUnlockedCategories() {
-  try {
-    const raw = sessionStorage.getItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
-    if (!raw) return new Set();
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-
-    return new Set(parsed.map((id) => String(id)));
-  } catch (error) {
-    return new Set();
-  }
-}
-
-function persistUnlockedCategories() {
-  sessionStorage.setItem(
-    UNLOCKED_CATEGORIES_STORAGE_KEY,
-    JSON.stringify([...unlockedCategoryIds])
-  );
+function clearUnlockedCategories() {
+  // Verrouille toutes les categories privees pour cette page.
+  unlockedCategoryIds.clear();
+  sessionStorage.removeItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
 }
 
 function loadCategoryOrder() {
+  // Lit l'ordre personnalise des categories depuis le navigateur.
   try {
     const raw = localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
     if (!raw) return [];
@@ -277,6 +275,7 @@ function loadCategoryOrder() {
 }
 
 function loadFavoriteOrder() {
+  // Lit l'ordre personnalise des favoris, groupe par categorie.
   try {
     const raw = localStorage.getItem(FAVORITE_ORDER_STORAGE_KEY);
     if (!raw) return {};
@@ -300,6 +299,8 @@ function loadFavoriteOrder() {
 }
 
 function loadDefaultCategory() {
+  // La categorie par defaut est lue depuis l'utilisateur stocke,
+  // puis depuis localStorage si besoin.
   try {
     const storedUser = getStoredAuthUser();
     const storedUserDefaultCategory = normalizePositiveId(storedUser?.default_category_id);
@@ -315,6 +316,7 @@ function loadDefaultCategory() {
 }
 
 function persistCategoryOrder() {
+  // Sauvegarde l'ordre des categories apres un drag and drop.
   localStorage.setItem(
     CATEGORY_ORDER_STORAGE_KEY,
     JSON.stringify(categoryOrderIds)
@@ -322,6 +324,7 @@ function persistCategoryOrder() {
 }
 
 function persistFavoriteOrder() {
+  // Sauvegarde l'ordre des favoris apres un deplacement.
   localStorage.setItem(
     FAVORITE_ORDER_STORAGE_KEY,
     JSON.stringify(favoriteOrderByCategory)
@@ -329,6 +332,7 @@ function persistFavoriteOrder() {
 }
 
 function persistDefaultCategory() {
+  // Garde la categorie par defaut synchronisee entre l'utilisateur stocke et localStorage.
   syncStoredAuthUserDefaultCategory(defaultCategoryId);
 
   if (defaultCategoryId) {
@@ -340,6 +344,7 @@ function persistDefaultCategory() {
 }
 
 function normalizePositiveId(value) {
+  // Retourne une chaine d'ID valide ou une chaine vide.
   const parsedId = Number(value);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
@@ -350,6 +355,7 @@ function normalizePositiveId(value) {
 }
 
 function getStoredAuthUser() {
+  // Lit la copie locale de l'utilisateur connecte.
   try {
     const rawUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
 
@@ -370,6 +376,7 @@ function getStoredAuthUser() {
 }
 
 function getAuthenticatedUserId() {
+  // On essaie d'abord localStorage, puis le payload du token.
   const storedUser = getStoredAuthUser();
   const storedUserId = storedUser ? Number(storedUser.id_user) : NaN;
 
@@ -401,6 +408,7 @@ function getAuthenticatedUserId() {
 }
 
 function syncStoredAuthUserDefaultCategory(categoryId) {
+  // Met a jour la copie locale de l'utilisateur quand la categorie par defaut change.
   const storedUser = getStoredAuthUser();
 
   if (!storedUser) {
@@ -412,6 +420,7 @@ function syncStoredAuthUserDefaultCategory(categoryId) {
 }
 
 async function getCurrentUser() {
+  // Recharge l'utilisateur depuis l'API pour obtenir la categorie par defaut a jour.
   const authUserId = getAuthenticatedUserId();
 
   if (!authUserId) {
@@ -423,6 +432,7 @@ async function getCurrentUser() {
 }
 
 function syncDefaultCategoryFromUser(user) {
+  // Applique au front la categorie par defaut renvoyee par le backend.
   const nextDefaultCategoryId = user
     ? normalizePositiveId(user.default_category_id)
     : "";
@@ -436,6 +446,7 @@ function syncDefaultCategoryFromUser(user) {
 }
 
 async function parseJsonSafely(response) {
+  // Certaines reponses HTTP peuvent etre vides.
   try {
     return await response.json();
   } catch (error) {
@@ -444,6 +455,7 @@ async function parseJsonSafely(response) {
 }
 
 async function fetchWithAuth(path, options = {}) {
+  // Wrapper commun pour tous les appels API de cette page.
   const token = getAuthToken();
 
   if (!token) {
@@ -484,6 +496,7 @@ async function fetchWithAuth(path, options = {}) {
 }
 
 async function requestCategoryUnlock(categoryId, password) {
+  // Demande au backend de verifier le mot de passe d'une categorie.
   return fetchWithAuth(`/categories/${categoryId}/unlock`, {
     method: "POST",
     headers: {
@@ -494,6 +507,7 @@ async function requestCategoryUnlock(categoryId, password) {
 }
 
 function setMessage(element, message, type = "") {
+  // Affiche un message dans un element deja present dans la page.
   if (!element) return;
 
   element.textContent = message;
@@ -518,6 +532,7 @@ function setDeleteSelectionSummary(message, type = "") {
 }
 
 function normalizeConfidentiality(value) {
+  // Convertit les formats API possibles vers "Private" ou "Public".
   const normalizedValue = String(value || "").toLowerCase();
 
   if (value === 1 || value === "1" || value === true) return "Private";
@@ -528,14 +543,17 @@ function normalizeConfidentiality(value) {
 }
 
 function isCategoryPrivate(category) {
+  // Petite fonction de lecture pour rendre les conditions plus lisibles.
   return normalizeConfidentiality(category?.confidentiality) === "Private";
 }
 
 function isCategoryUnlocked(categoryId) {
+  // Verifie si une categorie privee a ete deverrouillee pendant cette session de page.
   return unlockedCategoryIds.has(String(categoryId));
 }
 
 function getUnlockErrorMessage(error) {
+  // Traduit les messages techniques en phrase simple pour l'utilisateur.
   const message = error?.message || "";
 
   if (
@@ -549,6 +567,7 @@ function getUnlockErrorMessage(error) {
 }
 
 function createFavoritePasswordModal(categoryName) {
+  // Cree la modale de mot de passe uniquement quand une categorie privee est ouverte.
   const modalEl = document.createElement("div");
   modalEl.className = "favorite-modal";
   modalEl.innerHTML = `
@@ -578,6 +597,7 @@ function createFavoritePasswordModal(categoryName) {
 }
 
 function askFavoriteCategoryPassword(categoryName) {
+  // Promise qui renvoie le mot de passe saisi ou null si l'utilisateur annule.
   return new Promise((resolve) => {
     const modalEl = createFavoritePasswordModal(categoryName);
     const formEl = modalEl.querySelector(".favorite-modal__form");
@@ -587,6 +607,7 @@ function askFavoriteCategoryPassword(categoryName) {
     );
 
     function closeModal(value) {
+      // On nettoie l'ecouteur clavier pour eviter qu'il reste actif apres fermeture.
       document.removeEventListener("keydown", handleKeydown);
       modalEl.remove();
       resolve(value);
@@ -629,6 +650,7 @@ function showFavoriteConfirmModal({
   cancelLabel = "Annuler",
   danger = false,
 }) {
+  // Modale de confirmation reutilisee pour les actions sensibles, comme supprimer.
   return new Promise((resolve) => {
     const modalEl = document.createElement("div");
     modalEl.className = "favorite-modal";
@@ -701,6 +723,7 @@ function showFavoriteConfirmModal({
 }
 
 function getCategoryOptionsMarkup() {
+  // Genere les options des selects de categories.
   return categories
     .map(
       (category) =>
@@ -710,6 +733,7 @@ function getCategoryOptionsMarkup() {
 }
 
 function getCategoryById(categoryId) {
+  // Recherche une categorie dans l'etat local.
   return (
     categories.find(
       (category) => String(category.id_category) === String(categoryId)
@@ -718,6 +742,7 @@ function getCategoryById(categoryId) {
 }
 
 function syncCategoryOrderState() {
+  // Synchronise l'ordre stocke avec les categories actuellement disponibles.
   if (categories.length === 0) return;
 
   const currentIds = categories.map((category) => String(category.id_category));
@@ -732,6 +757,7 @@ function syncCategoryOrderState() {
 }
 
 function sortCategoriesByStoredOrder(list) {
+  // Trie les categories selon l'ordre sauvegarde en local.
   const orderMap = new Map(
     categoryOrderIds.map((id, index) => [String(id), index])
   );
@@ -751,6 +777,7 @@ function sortCategoriesByStoredOrder(list) {
 }
 
 function syncDefaultCategoryState() {
+  // Si la categorie par defaut n'existe plus, on retire cette preference.
   const availableCategoryIds = new Set(
     categories.map((category) => String(category.id_category))
   );
@@ -763,7 +790,26 @@ function syncDefaultCategoryState() {
   persistDefaultCategory();
 }
 
+function getPublicExpandedCategoryIds(categoryIds) {
+  // Lorsqu'on rebloque les categories privees, on garde seulement les publiques ouvertes.
+  return new Set(
+    [...categoryIds].filter((categoryId) => {
+      const category = getCategoryById(categoryId);
+
+      return category && !isCategoryPrivate(category);
+    })
+  );
+}
+
+function relockProtectedCategories() {
+  // Appelee quand on quitte la page ou qu'elle revient depuis le cache navigateur.
+  clearUnlockedCategories();
+  expandedEditCategoryIds = getPublicExpandedCategoryIds(expandedEditCategoryIds);
+  expandedDeleteCategoryIds = getPublicExpandedCategoryIds(expandedDeleteCategoryIds);
+}
+
 function updateFavCategoryHelp() {
+  // Met a jour le texte sous le select d'ajout de favori.
   if (!favCategoryHelp) return;
 
   if (categories.length === 0) {
@@ -801,6 +847,7 @@ function updateFavCategoryHelp() {
 }
 
 function updateWorkspaceSummary() {
+  // Recalcule les compteurs visibles en haut du panneau favoris.
   const totalFavorites = favorites.length;
   const linkedFavorites = favorites.filter(
     (fav) => typeof fav.url_favs === "string" && fav.url_favs.trim() !== ""
@@ -849,6 +896,7 @@ function updateWorkspaceSummary() {
 }
 
 function getActionHelperText() {
+  // Texte court qui explique le mode actif.
   if (currentActionMode === "edit") {
     return "Choisissez un favori à modifier ou cochez-en plusieurs pour les déplacer ensemble.";
   }
@@ -861,6 +909,7 @@ function getActionHelperText() {
 }
 
 function updateActionModeUI() {
+  // Affiche le bon panneau selon le mode choisi : modifier ou supprimer.
   if (enterEditModeButton) {
     enterEditModeButton.classList.toggle("is-active", currentActionMode === "edit");
   }
@@ -883,6 +932,7 @@ function updateActionModeUI() {
 }
 
 function renderCategorySelects() {
+  // Remplit les selects de categories pour l'ajout et la modification.
   const selectedAddCategoryId = String(favCategory.value || "");
   const options = getCategoryOptionsMarkup();
   const availableCategoryIds = new Set(
@@ -904,12 +954,14 @@ function renderCategorySelects() {
 }
 
 function getFavoritesForCategory(categoryId) {
+  // Filtre les favoris appartenant a une categorie.
   return favorites.filter(
     (fav) => String(fav.id_category) === String(categoryId)
   );
 }
 
 function syncFavoriteOrderState() {
+  // Garde l'ordre local des favoris coherent avec les favoris venus de l'API.
   const favoriteIdsByCategory = favorites.reduce((accumulator, fav) => {
     const categoryId = String(fav.id_category || "");
 
@@ -951,6 +1003,7 @@ function syncFavoriteOrderState() {
 }
 
 function placeFavoritesInOrder({ favIds, targetCategoryId, beforeFavId = "" }) {
+  // Met a jour l'ordre local apres un deplacement par drag and drop.
   const normalizedFavIds = [...new Set((favIds || []).map((id) => String(id || "")).filter(Boolean))];
   const normalizedCategoryId = String(targetCategoryId || "");
   const normalizedBeforeFavId = String(beforeFavId || "");
@@ -986,6 +1039,7 @@ function placeFavoritesInOrder({ favIds, targetCategoryId, beforeFavId = "" }) {
 }
 
 function placeFavoriteInOrder({ favId, targetCategoryId, beforeFavId = "" }) {
+  // Version pratique pour un seul favori.
   placeFavoritesInOrder({
     favIds: [favId],
     targetCategoryId,
@@ -994,6 +1048,7 @@ function placeFavoriteInOrder({ favId, targetCategoryId, beforeFavId = "" }) {
 }
 
 function getFavoritesGroupedByCategory() {
+  // Groupe les favoris par categorie pour certains affichages.
   const categoryOrder = new Map(
     categories.map((category, index) => [String(category.id_category), index])
   );
@@ -1031,6 +1086,7 @@ function getFavoritesGroupedByCategory() {
 }
 
 function getFavUrlMarkup(fav) {
+  // Affiche un lien cliquable si l'URL existe, sinon un texte simple.
   const hasUrl = typeof fav.url_favs === "string" && fav.url_favs.trim() !== "";
 
   if (!hasUrl) {
@@ -1041,6 +1097,8 @@ function getFavUrlMarkup(fav) {
 }
 
 function getEditBoardFavoriteMarkup(fav) {
+  // Genere un favori dans le panneau de modification.
+  // Le bouton principal est aussi draggable.
   const hasUrl = typeof fav.url_favs === "string" && fav.url_favs.trim() !== "";
   const isSelected = String(selectedEditFavId) === String(fav.id_favs);
   const isBatchSelected = selectedEditFavIds.has(String(fav.id_favs));
@@ -1076,6 +1134,7 @@ function getEditBoardFavoriteMarkup(fav) {
 }
 
 function getDeleteBoardFavoriteMarkup(fav) {
+  // Genere un favori selectionnable dans le panneau suppression.
   const hasUrl = typeof fav.url_favs === "string" && fav.url_favs.trim() !== "";
   const isSelected = String(selectedDeleteFavId) === String(fav.id_favs);
 
@@ -1094,12 +1153,14 @@ function getDeleteBoardFavoriteMarkup(fav) {
 }
 
 function getCategoryBadgeLabel(category) {
+  // Badge visible dans les cartes de categories.
   if (!category) return "";
 
   return isCategoryPrivate(category) ? "Privée" : "Publique";
 }
 
 function getCategoryMetaLabel(categoryId) {
+  // Texte secondaire sous le nom de la categorie.
   const category = getCategoryById(categoryId);
 
   if (!category) return "";
@@ -1114,6 +1175,7 @@ function getCategoryMetaLabel(categoryId) {
 }
 
 function renderEditCategoryQuickList() {
+  // Liste compacte en haut : elle sert a ouvrir une categorie et a recevoir un drop.
   if (!editCategoryQuickList) return;
 
   if (categories.length === 0) {
@@ -1140,8 +1202,9 @@ function renderEditCategoryQuickList() {
           type="button"
           class="edit-category-pill ${isExpanded ? "is-active" : ""} ${isPrivate ? "is-private" : "is-public"}"
           data-quick-toggle-edit-category="${categoryId}"
+          data-drop-fav-category="${categoryId}"
           aria-pressed="${isExpanded ? "true" : "false"}"
-          title="Ouvrir la catégorie ${category.category_name}"
+          title="Ouvrir la catégorie ${category.category_name} ou y déposer un favori"
         >
           <span class="edit-category-pill-main">
             <span class="edit-category-pill-name">${category.category_name}</span>
@@ -1162,6 +1225,7 @@ function renderEditCategoryQuickList() {
 }
 
 function renderEditBoard() {
+  // Affiche uniquement les categories ouvertes pour ne pas encombrer l'ecran.
   if (categories.length === 0) {
     editDragBoard.innerHTML = "";
     editCategoryEmptyState.style.display = "block";
@@ -1169,13 +1233,16 @@ function renderEditBoard() {
     return;
   }
 
+  const visibleCategories = categories.filter((category) =>
+    expandedEditCategoryIds.has(String(category.id_category))
+  );
+
   editCategoryEmptyState.style.display = "none";
-  editDragBoard.innerHTML = categories
+  editDragBoard.innerHTML = visibleCategories
     .map((category) => {
       const categoryId = String(category.id_category);
       const isPrivate = isCategoryPrivate(category);
       const isUnlocked = !isPrivate || isCategoryUnlocked(categoryId);
-      const isExpanded = expandedEditCategoryIds.has(categoryId);
       const categoryFavorites = getFavoritesForCategory(categoryId);
       const count = categoryFavorites.length;
       const hasSelectedFavorite = categoryFavorites.some(
@@ -1186,7 +1253,7 @@ function renderEditBoard() {
 
       return `
         <section
-          class="edit-category-lane ${isPrivate ? "is-private" : "is-public"} ${hasSelectedFavorite ? "has-selection" : ""} ${isExpanded ? "is-expanded" : ""}"
+          class="edit-category-lane ${isPrivate ? "is-private" : "is-public"} ${hasSelectedFavorite ? "has-selection" : ""} is-expanded"
           data-category-lane="${categoryId}"
           data-drop-fav-category="${categoryId}"
         >
@@ -1206,7 +1273,7 @@ function renderEditBoard() {
               type="button"
               class="edit-category-toggle"
               data-toggle-edit-category="${categoryId}"
-              aria-expanded="${isExpanded ? "true" : "false"}"
+              aria-expanded="true"
             >
               <div class="edit-category-main">
                 <span class="edit-category-status">${badgeLabel}</span>
@@ -1217,32 +1284,26 @@ function renderEditBoard() {
               <span class="edit-category-side">
                 ${isPrivate ? `<span class="edit-category-lock" aria-hidden="true">${isUnlocked ? "🔓" : "🔒"}</span>` : ""}
                 <span class="fav-group-count">${count}</span>
-                <span class="edit-category-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+                <span class="edit-category-chevron" aria-hidden="true">-</span>
               </span>
             </button>
           </div>
 
           ${
-            isExpanded
-              ? !isUnlocked
-                ? `
-                  <div class="edit-locked-state">
-                    <p>Catégorie privée protégée. Cliquez de nouveau pour saisir le mot de passe.</p>
-                  </div>
-                `
-                : `
-                  <ul class="fav-draft-list edit-lane-list">
-                    ${
-                      count > 0
-                        ? categoryFavorites.map(getEditBoardFavoriteMarkup).join("")
-                        : `<li class="edit-empty-state">Aucun favori dans cette catégorie.</li>`
-                    }
-                  </ul>
-                `
-              : `
-                <div class="edit-closed-drop-zone">
-                  <p>Déposez un favori ici pour le ranger dans cette catégorie.</p>
+            !isUnlocked
+              ? `
+                <div class="edit-locked-state">
+                  <p>Catégorie privée protégée. Cliquez de nouveau pour saisir le mot de passe.</p>
                 </div>
+              `
+              : `
+                <ul class="fav-draft-list edit-lane-list">
+                  ${
+                    count > 0
+                      ? categoryFavorites.map(getEditBoardFavoriteMarkup).join("")
+                      : `<li class="edit-empty-state">Aucun favori dans cette catégorie.</li>`
+                  }
+                </ul>
               `
           }
         </section>
@@ -1252,11 +1313,14 @@ function renderEditBoard() {
 
   setMessage(
     editBoardMessage,
-    "Glissez un favori sur une catégorie, même fermée. Ouvrez-la seulement si vous voulez voir son contenu."
+    visibleCategories.length > 0
+      ? "Glissez un favori vers une catégorie du haut pour le déplacer."
+      : "Choisissez une catégorie dans la liste ci-dessus pour afficher ses favoris."
   );
 }
 
 function renderDeleteBoard() {
+  // Le panneau suppression garde une navigation par categories.
   if (categories.length === 0) {
     deleteFavBoard.innerHTML = "";
     deleteCategoryEmptyState.style.display = "block";
@@ -1336,6 +1400,7 @@ function renderDeleteBoard() {
 }
 
 function fillEditForm(selectedId) {
+  // Remplit le formulaire de modification avec le favori choisi.
   const fav = favorites.find((item) => String(item.id_favs) === String(selectedId));
 
   if (!fav) {
@@ -1360,6 +1425,7 @@ function fillEditForm(selectedId) {
 }
 
 function fillDeleteSelection(selectedId) {
+  // Memorise le favori choisi pour suppression.
   const fav = favorites.find((item) => String(item.id_favs) === String(selectedId));
 
   if (!fav) {
@@ -1377,6 +1443,7 @@ function fillDeleteSelection(selectedId) {
 }
 
 function syncEditSelectionState() {
+  // Nettoie les selections de modification si les donnees ont change.
   const availableCategoryIds = new Set(
     categories.map((category) => String(category.id_category))
   );
@@ -1406,6 +1473,7 @@ function syncEditSelectionState() {
 }
 
 function syncDeleteSelectionState() {
+  // Nettoie les selections de suppression si les donnees ont change.
   const availableCategoryIds = new Set(
     categories.map((category) => String(category.id_category))
   );
@@ -1426,6 +1494,8 @@ function syncDeleteSelectionState() {
 }
 
 async function handleEditCategoryToggle(categoryId) {
+  // Ouvre/ferme une categorie dans le panneau modification.
+  // Si elle est privee, le deuxieme clic demande le mot de passe.
   const normalizedCategoryId = String(categoryId || "");
   const category = getCategoryById(normalizedCategoryId);
 
@@ -1478,6 +1548,7 @@ async function handleEditCategoryToggle(categoryId) {
 }
 
 function syncFormAvailability() {
+  // Active ou desactive les formulaires selon les donnees disponibles.
   const hasCategories = categories.length > 0;
   const hasFavorites = favorites.length > 0;
   const hasSelectedEditFavorite = Boolean(selectedEditFavId);
@@ -1514,6 +1585,7 @@ function syncFormAvailability() {
 }
 
 function sortFavoritesByStoredOrder() {
+  // Trie les favoris en tenant compte de l'ordre des categories et de l'ordre local.
   syncFavoriteOrderState();
 
   const categoryOrderMap = new Map(
@@ -1558,6 +1630,7 @@ function sortFavoritesByStoredOrder() {
 }
 
 function refreshUI() {
+  // Point central : apres une modification, on synchronise puis on rerend tout.
   syncCategoryOrderState();
   sortFavoritesByStoredOrder();
   syncEditSelectionState();
@@ -1576,24 +1649,34 @@ function refreshUI() {
 }
 
 function clearCategoryDropStates() {
+  // Retire les styles temporaires du drag de categories.
   editDragBoard
     .querySelectorAll(".edit-category-lane.drop-active")
     .forEach((lane) => lane.classList.remove("drop-active"));
 }
 
 function clearFavoriteDropStates() {
-  editDragBoard
-    .querySelectorAll(".edit-category-lane.favorite-drop-active")
-    .forEach((lane) => lane.classList.remove("favorite-drop-active"));
+  // Retire les styles temporaires du drag de favoris.
+  [editDragBoard, editCategoryQuickList]
+    .filter(Boolean)
+    .forEach((root) => {
+      root
+        .querySelectorAll(
+          ".edit-category-lane.favorite-drop-active, .edit-category-pill.favorite-drop-active"
+        )
+        .forEach((target) => target.classList.remove("favorite-drop-active"));
+    });
 }
 
 function clearFavoriteItemDropStates() {
+  // Retire le style de cible sur les favoris.
   editDragBoard
     .querySelectorAll(".fav-draft-item.favorite-drop-target")
     .forEach((item) => item.classList.remove("favorite-drop-target"));
 }
 
 function swapCategoryOrder(sourceCategoryId, targetCategoryId) {
+  // Echange deux categories dans l'ordre local.
   if (!sourceCategoryId || !targetCategoryId || sourceCategoryId === targetCategoryId) {
     return;
   }
@@ -1615,12 +1698,14 @@ function swapCategoryOrder(sourceCategoryId, targetCategoryId) {
 }
 
 function canOpenCategoryAfterFavoriteMove(categoryId) {
+  // Apres un deplacement, on ouvre la cible seulement si elle est accessible.
   const category = getCategoryById(categoryId);
 
   return Boolean(category) && (!isCategoryPrivate(category) || isCategoryUnlocked(categoryId));
 }
 
 function getFavoriteDragIds(favId) {
+  // Si le favori fait partie d'une selection multiple, on deplace toute la selection.
   const normalizedFavId = String(favId || "");
 
   if (!normalizedFavId) {
@@ -1646,6 +1731,7 @@ function getFavoriteDragIds(favId) {
 }
 
 function getDraggedFavoriteIds() {
+  // Pendant le drag, cette fonction donne toujours la liste a deplacer.
   if (draggedFavoriteIds.length > 0) {
     return draggedFavoriteIds;
   }
@@ -1654,10 +1740,13 @@ function getDraggedFavoriteIds() {
 }
 
 async function moveFavoriteToCategory(favId, targetCategoryId, options = {}) {
+  // Raccourci pour deplacer un seul favori.
   return moveFavoritesToCategory([favId], targetCategoryId, options);
 }
 
 async function moveFavoritesToCategory(favIds, targetCategoryId, options = {}) {
+  // Deplace un ou plusieurs favoris vers une categorie.
+  // Si la categorie ne change pas, on met seulement l'ordre local a jour.
   const { beforeFavId = "" } = options;
   const targetCategory = categories.find(
     (item) => String(item.id_category) === String(targetCategoryId)
@@ -1748,6 +1837,7 @@ async function moveFavoritesToCategory(favIds, targetCategoryId, options = {}) {
 }
 
 async function ensureCategorySelectionAccess(categoryId) {
+  // Verifie si on peut afficher une categorie privee, sinon demande son mot de passe.
   const category = getCategoryById(categoryId);
 
   if (!category) {
@@ -1766,11 +1856,11 @@ async function ensureCategorySelectionAccess(categoryId) {
 
   await requestCategoryUnlock(categoryId, userInput);
   unlockedCategoryIds.add(String(categoryId));
-  persistUnlockedCategories();
   return true;
 }
 
 async function loadPageData() {
+  // Chargement initial : categories, favoris et utilisateur courant en parallele.
   setMessage(favFormMessage, "Chargement des données...");
 
   try {
@@ -1803,6 +1893,7 @@ async function loadPageData() {
 }
 
 favForm.addEventListener("submit", async (event) => {
+  // Ajout d'un favori depuis le formulaire de gauche.
   event.preventDefault();
 
   const title = favTitle.value.trim();
@@ -1874,20 +1965,37 @@ favForm.addEventListener("submit", async (event) => {
 });
 
 favCategory.addEventListener("change", () => {
+  // Met a jour l'aide quand l'utilisateur choisit une categorie.
   updateFavCategoryHelp();
 });
 
 enterEditModeButton.addEventListener("click", () => {
+  // Affiche le panneau de modification.
   currentActionMode = "edit";
   updateActionModeUI();
 });
 
 enterDeleteModeButton.addEventListener("click", () => {
+  // Affiche le panneau de suppression.
   currentActionMode = "delete";
   updateActionModeUI();
 });
 
+window.addEventListener("pagehide", () => {
+  // Securite : quand on quitte la page, les categories privees sont rebloquees.
+  relockProtectedCategories();
+});
+
+window.addEventListener("pageshow", (event) => {
+  // Si le navigateur restaure la page depuis son cache, on rebloque aussi.
+  if (!event.persisted) return;
+
+  relockProtectedCategories();
+  refreshUI();
+});
+
 editDragBoard.addEventListener("click", async (event) => {
+  // Gestion des clics dans le panneau de modification.
   const categoryToggle = event.target.closest("[data-toggle-edit-category]");
 
   if (categoryToggle) {
@@ -1913,7 +2021,7 @@ editDragBoard.addEventListener("click", async (event) => {
       editBoardMessage,
       selectedEditFavIds.size > 0
         ? `${selectedEditFavIds.size} favori${selectedEditFavIds.size > 1 ? "s" : ""} sélectionné${selectedEditFavIds.size > 1 ? "s" : ""}. Glissez-en un pour déplacer la sélection.`
-        : "Glissez un favori sur une catégorie, même fermée. Ouvrez-la seulement si vous voulez voir son contenu."
+        : "Choisissez une catégorie dans la liste ci-dessus pour afficher ses favoris."
     );
     return;
   }
@@ -1929,6 +2037,7 @@ editDragBoard.addEventListener("click", async (event) => {
 });
 
 editCategoryQuickList?.addEventListener("click", async (event) => {
+  // Clic sur une pastille du haut : ouvrir ou fermer la categorie.
   const quickToggleButton = event.target.closest("[data-quick-toggle-edit-category]");
 
   if (!quickToggleButton) return;
@@ -1936,7 +2045,65 @@ editCategoryQuickList?.addEventListener("click", async (event) => {
   await handleEditCategoryToggle(quickToggleButton.dataset.quickToggleEditCategory);
 });
 
+editCategoryQuickList?.addEventListener("dragover", (event) => {
+  // Les pastilles du haut servent aussi de zones de depot pour les favoris.
+  const favoriteDropCategory = event.target.closest("[data-drop-fav-category]");
+  const movingFavoriteIds = getDraggedFavoriteIds();
+
+  if (movingFavoriteIds.length === 0 || !favoriteDropCategory) return;
+
+  const targetCategoryId = String(favoriteDropCategory.dataset.dropFavCategory);
+  const hasDraggedFavorite = favorites.some((fav) =>
+    movingFavoriteIds.includes(String(fav.id_favs))
+  );
+
+  if (!targetCategoryId || !hasDraggedFavorite) return;
+
+  event.preventDefault();
+  clearFavoriteDropStates();
+  clearFavoriteItemDropStates();
+  favoriteDropCategory.classList.add("favorite-drop-active");
+  event.dataTransfer.dropEffect = "move";
+});
+
+editCategoryQuickList?.addEventListener("dragleave", (event) => {
+  // Quand la souris quitte une pastille, on retire l'etat visuel de depot.
+  const favoriteDropCategory = event.target.closest("[data-drop-fav-category]");
+
+  if (!favoriteDropCategory) return;
+  if (favoriteDropCategory.contains(event.relatedTarget)) return;
+
+  favoriteDropCategory.classList.remove("favorite-drop-active");
+});
+
+editCategoryQuickList?.addEventListener("drop", async (event) => {
+  // Depot d'un favori sur une pastille du haut.
+  const favoriteDropCategory = event.target.closest("[data-drop-fav-category]");
+  const movingFavoriteIds = getDraggedFavoriteIds();
+
+  if (movingFavoriteIds.length === 0 || !favoriteDropCategory) return;
+
+  event.preventDefault();
+  const targetCategoryId = String(favoriteDropCategory.dataset.dropFavCategory);
+
+  clearFavoriteDropStates();
+  clearFavoriteItemDropStates();
+
+  if (!targetCategoryId) return;
+
+  try {
+    await moveFavoritesToCategory(movingFavoriteIds, targetCategoryId);
+  } catch (error) {
+    setMessage(
+      editBoardMessage,
+      error.message || "Impossible de déplacer le favori pour le moment.",
+      "error"
+    );
+  }
+});
+
 deleteFavBoard.addEventListener("click", async (event) => {
+  // Gestion des clics dans le panneau suppression.
   const categoryToggle = event.target.closest("[data-toggle-delete-category]");
 
   if (categoryToggle) {
@@ -2034,6 +2201,7 @@ editDragBoard.addEventListener("dragstart", (event) => {
 });
 
 editDragBoard.addEventListener("dragend", (event) => {
+  // Fin du drag : on nettoie toutes les variables temporaires et les classes CSS.
   const dragHandle = event.target.closest("[data-drag-category]");
 
   draggedCategoryId = "";
@@ -2049,6 +2217,8 @@ editDragBoard.addEventListener("dragend", (event) => {
 });
 
 editDragBoard.addEventListener("dragover", (event) => {
+  // Pendant le survol, on choisit le bon type de cible :
+  // favori, categorie ouverte, ou ordre des categories.
   const favoriteDropItem = event.target.closest(
     "[data-favorite-item][data-favorite-category]"
   );
@@ -2102,6 +2272,7 @@ editDragBoard.addEventListener("dragover", (event) => {
 });
 
 editDragBoard.addEventListener("dragleave", (event) => {
+  // Sortie d'une cible de drop : on retire l'etat visuel correspondant.
   const favoriteDropItem = event.target.closest(
     "[data-favorite-item][data-favorite-category]"
   );
@@ -2127,6 +2298,7 @@ editDragBoard.addEventListener("dragleave", (event) => {
 });
 
 editDragBoard.addEventListener("drop", async (event) => {
+  // Depot final dans le panneau de modification.
   const favoriteDropItem = event.target.closest(
     "[data-favorite-item][data-favorite-category]"
   );
@@ -2223,6 +2395,7 @@ editDragBoard.addEventListener("drop", async (event) => {
 });
 
 editFavForm.addEventListener("submit", async (event) => {
+  // Enregistre la modification du favori selectionne.
   event.preventDefault();
 
   const selectedId = Number(selectedEditFavId);
@@ -2269,6 +2442,7 @@ editFavForm.addEventListener("submit", async (event) => {
 });
 
 deleteFavForm.addEventListener("submit", async (event) => {
+  // Supprime le favori choisi apres confirmation.
   event.preventDefault();
 
   const selectedId = Number(deleteFavId.value);
@@ -2315,5 +2489,6 @@ deleteFavForm.addEventListener("submit", async (event) => {
   }
 });
 
+// Premier rendu vide, puis chargement des donnees reelles depuis l'API.
 refreshUI();
 loadPageData();

@@ -8,6 +8,9 @@ export const ROLE_CODES = Object.freeze({
   USER: "USER",
 });
 
+// Les administrateurs et moderateurs peuvent acceder a plus de ressources
+// qu'un utilisateur classique. On regroupe ces roles ici pour eviter de repeter
+// la meme liste dans plusieurs fichiers.
 const PRIVILEGED_ROLE_CODES = [ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR];
 
 // Cette fonction recupere proprement le token dans l'en-tete Authorization.
@@ -40,6 +43,8 @@ function extractBearerToken(authorizationHeader) {
 }
 
 function parsePositiveId(value) {
+  // Les IDs provenant d'une URL ou d'un token peuvent arriver sous forme de texte.
+  // On les convertit, puis on refuse les valeurs invalides.
   const id = Number(value);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -50,6 +55,8 @@ function parsePositiveId(value) {
 }
 
 async function getAuthUserById(idUser) {
+  // On recharge l'utilisateur depuis la base a chaque requete protegee.
+  // Cela evite de faire confiance aveuglement aux infos contenues dans le token.
   const [rows] = await connection.execute(
     `SELECT
       u.id_user,
@@ -72,6 +79,7 @@ async function getAuthUserById(idUser) {
 }
 
 export function hasRole(user, allowedRoleCodes = []) {
+  // Fonction tres simple : elle dit si l'utilisateur possede l'un des roles autorises.
   if (!user || typeof user !== "object") {
     return false;
   }
@@ -84,6 +92,7 @@ export function hasRole(user, allowedRoleCodes = []) {
 }
 
 export function isPrivilegedUser(user) {
+  // Sert dans les controleurs pour autoriser admin/moderateur a voir plus de donnees.
   return hasRole(user, PRIVILEGED_ROLE_CODES);
 }
 
@@ -120,6 +129,8 @@ export async function requireAuth(req, res, next) {
 }
 
 export function requireRole(...allowedRoleCodes) {
+  // Middleware configurable.
+  // Exemple : requireRole(ROLE_CODES.ADMIN) bloque tous les non-admins.
   return function checkRole(req, res, next) {
     if (!req.authUser) {
       return res.status(401).json({ message: "Authentification requise." });
@@ -134,6 +145,9 @@ export function requireRole(...allowedRoleCodes) {
 }
 
 export function requireSelfOrRole(resolveTargetUserId, ...allowedRoleCodes) {
+  // Ce middleware autorise deux cas :
+  // 1. l'utilisateur modifie sa propre ressource,
+  // 2. l'utilisateur a un role special, comme ADMIN.
   return function checkSelfOrRole(req, res, next) {
     if (!req.authUser) {
       return res.status(401).json({ message: "Authentification requise." });

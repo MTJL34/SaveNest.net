@@ -13,6 +13,7 @@ setHeader();
 setFooter();
 
 // Etat principal de la page catégories : mode courant, sélection et chargement.
+// On garde ces variables en haut pour comprendre rapidement ce qui peut changer.
 const categories = [];
 let currentMode = "view";
 let editingCategoryId = null;
@@ -24,14 +25,17 @@ let isDeletingSelection = false;
 let defaultCategoryId = loadDefaultCategory();
 
 function getAuthToken() {
+  // Le token JWT est ajoute aux appels API proteges.
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
 
 function redirectToLogin() {
+  // Si le backend refuse la session, on renvoie vers la page de connexion.
   window.location.assign("../html/connexion.html#login");
 }
 
 async function parseJsonSafely(response) {
+  // Evite une erreur si le serveur renvoie une reponse vide ou non JSON.
   try {
     return await response.json();
   } catch (error) {
@@ -40,6 +44,8 @@ async function parseJsonSafely(response) {
 }
 
 async function fetchWithAuth(path, options = {}) {
+  // Petit wrapper autour de fetch :
+  // il ajoute le token, gere le serveur indisponible et transforme les erreurs HTTP.
   const token = getAuthToken();
 
   if (!token) {
@@ -80,6 +86,8 @@ async function fetchWithAuth(path, options = {}) {
 }
 
 function loadDefaultCategory() {
+  // La categorie par defaut est lue d'abord depuis l'utilisateur stocke,
+  // puis depuis localStorage comme solution de secours.
   try {
     const storedUser = getStoredAuthUser();
     const storedUserDefaultCategory = storedUser
@@ -97,6 +105,9 @@ function loadDefaultCategory() {
 }
 
 function persistDefaultCategory() {
+  // On garde la categorie par defaut synchronisee dans deux endroits :
+  // 1. l'utilisateur stocke,
+  // 2. une cle dediee pour lecture rapide.
   syncStoredAuthUserDefaultCategory(defaultCategoryId);
 
   if (defaultCategoryId) {
@@ -108,6 +119,7 @@ function persistDefaultCategory() {
 }
 
 function normalizePositiveId(value) {
+  // Retourne toujours une chaine d'ID valide ou une chaine vide.
   const parsedId = Number(value);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
@@ -118,6 +130,7 @@ function normalizePositiveId(value) {
 }
 
 function getStoredAuthUser() {
+  // Lit l'utilisateur connecte stocke apres login.
   try {
     const rawUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
 
@@ -138,6 +151,7 @@ function getStoredAuthUser() {
 }
 
 function getAuthenticatedUserId() {
+  // On essaie d'abord localStorage, puis le token si necessaire.
   const storedUser = getStoredAuthUser();
   const storedUserId = storedUser ? Number(storedUser.id_user) : NaN;
 
@@ -169,6 +183,7 @@ function getAuthenticatedUserId() {
 }
 
 function syncStoredAuthUserDefaultCategory(categoryId) {
+  // Met a jour la copie locale de l'utilisateur quand la categorie par defaut change.
   const storedUser = getStoredAuthUser();
 
   if (!storedUser) {
@@ -180,6 +195,7 @@ function syncStoredAuthUserDefaultCategory(categoryId) {
 }
 
 function normalizeConfidentiality(value) {
+  // Convertit plusieurs formats possibles vers "Private" ou "Public".
   const normalizedValue = String(value || "").toLowerCase();
 
   if (value === 1 || value === "1" || value === true) return "Private";
@@ -190,10 +206,12 @@ function normalizeConfidentiality(value) {
 }
 
 function toApiConfidentiality(value) {
+  // L'API attend 1 pour privee et 0 pour publique.
   return normalizeConfidentiality(value) === "Private" ? 1 : 0;
 }
 
 function setInlineMessage(element, message, type = "") {
+  // Affiche un message juste sous un formulaire ou une action.
   if (!element) return;
 
   element.textContent = message;
@@ -201,15 +219,18 @@ function setInlineMessage(element, message, type = "") {
 }
 
 function clearActionMessage() {
+  // Reinitialise le message global de la page.
   actionMessage = "";
   actionMessageType = "";
 }
 
 function clearDeleteSelection() {
+  // Vide la selection multiple de categories.
   selectedCategoryIds = new Set();
 }
 
 function syncDeleteSelection() {
+  // Si une categorie vient d'etre supprimee ou rechargee, on nettoie la selection.
   const availableIds = new Set(
     categories.map((item) => String(item.id_category))
   );
@@ -220,6 +241,7 @@ function syncDeleteSelection() {
 }
 
 function toggleDeleteSelection(categoryId) {
+  // Ajoute ou retire une categorie de la selection de suppression.
   const normalizedId = String(categoryId);
 
   if (selectedCategoryIds.has(normalizedId)) {
@@ -231,12 +253,14 @@ function toggleDeleteSelection(categoryId) {
 }
 
 function getSelectedCategories() {
+  // Retourne les objets categories correspondant aux IDs selectionnes.
   return categories.filter((item) =>
     selectedCategoryIds.has(String(item.id_category))
   );
 }
 
 function getDefaultCategory() {
+  // Retrouve la categorie par defaut courante, si elle existe encore.
   return (
     categories.find(
       (item) => String(item.id_category) === String(defaultCategoryId)
@@ -245,6 +269,7 @@ function getDefaultCategory() {
 }
 
 function syncDefaultCategoryState() {
+  // Si la categorie par defaut a ete supprimee, on nettoie la preference.
   if (
     !defaultCategoryId ||
     categories.some((item) => String(item.id_category) === String(defaultCategoryId))
@@ -263,6 +288,7 @@ function showCategoryConfirmModal({
   cancelLabel = "Annuler",
   danger = false,
 }) {
+  // Modale generique reutilisee pour les confirmations sensibles.
   return new Promise((resolve) => {
     const modalEl = document.createElement("div");
     modalEl.className = "category-confirm-modal";
@@ -296,6 +322,7 @@ function showCategoryConfirmModal({
     }
 
     function closeModal(value) {
+      // Nettoyage obligatoire : on retire l'ecouteur clavier et la modale.
       document.removeEventListener("keydown", handleKeydown);
       modalEl.remove();
       resolve(value);
@@ -340,6 +367,7 @@ async function resolveCategorySecurity({
   messageEl,
   privacySelect,
 }) {
+  // Centralise les regles de mot de passe pour la creation d'une categorie.
   const trimmedPassword = String(password || "").trim();
 
   if (confidentiality === "Private" && !trimmedPassword) {
@@ -386,10 +414,12 @@ async function resolveCategorySecurity({
 }
 
 function getActionButtonClass(mode) {
+  // Ajoute une classe visuelle au bouton correspondant au mode actif.
   return currentMode === mode ? "btn-primary is-active" : "btn-primary";
 }
 
 function renderCards() {
+  // Genere les cartes de categories selon le mode courant.
   if (isLoading) {
     return `<p class="form-message">Chargement des catégories...</p>`;
   }
@@ -451,6 +481,7 @@ function renderCards() {
 }
 
 function renderDeleteToolbar() {
+  // Barre visible seulement en mode suppression multiple.
   if (currentMode !== "delete") {
     return "";
   }
@@ -493,6 +524,7 @@ function renderDeleteToolbar() {
 }
 
 function buildDeleteConfirmationMessage(selectedItems) {
+  // Resume la selection sans afficher une liste trop longue.
   const count = selectedItems.length;
   const previewNames = selectedItems
     .slice(0, 3)
@@ -509,6 +541,8 @@ function buildDeleteConfirmationMessage(selectedItems) {
 }
 
 function getEditPasswordConfig(selectedCategory, targetConfidentiality) {
+  // Le libelle du champ mot de passe change selon la transition :
+  // privee vers publique, publique vers privee, ou privee qui reste privee.
   const currentConfidentiality = normalizeConfidentiality(
     selectedCategory.confidentiality
   );
@@ -558,6 +592,7 @@ async function resolveEditCategorySecurity({
   messageEl,
   privacySelect,
 }) {
+  // Meme logique que la creation, mais adaptee a une categorie deja existante.
   const currentConfidentiality = normalizeConfidentiality(
     selectedCategory.confidentiality
   );
@@ -591,6 +626,7 @@ async function resolveEditCategorySecurity({
 }
 
 function renderEditPanel() {
+  // Le panneau de modification n'existe que lorsqu'une categorie est selectionnee.
   if (currentMode !== "edit" || !editingCategoryId) {
     return "";
   }
@@ -738,6 +774,7 @@ function renderPage() {
 }
 
 async function loadCategories(message = "", type = "") {
+  // Recharge les categories depuis l'API puis met l'interface a jour.
   isLoading = true;
   renderPage();
 
@@ -772,6 +809,7 @@ async function loadCategories(message = "", type = "") {
 }
 
 function setupFormEvents() {
+  // Comme renderPage remplace le HTML, il faut reconnecter les ecouteurs apres chaque rendu.
   const form = document.getElementById("categoryForm");
   const nameInput = document.getElementById("categoryName");
   const privacySelect = document.getElementById("categoryPrivacy");
@@ -787,6 +825,7 @@ function setupFormEvents() {
   const cancelInlineEditBtn = document.getElementById("cancelInlineEdit");
 
   privacySelect.addEventListener("change", () => {
+    // Le champ mot de passe devient obligatoire seulement pour une categorie privee.
     if (privacySelect.value === "Private") {
       passwordInput.setAttribute("required", "required");
     } else {
@@ -796,6 +835,7 @@ function setupFormEvents() {
   });
 
   form.addEventListener("submit", async (event) => {
+    // Creation d'une categorie.
     event.preventDefault();
 
     const name = nameInput.value.trim();
@@ -845,6 +885,7 @@ function setupFormEvents() {
   });
 
   enterEditModeBtn.addEventListener("click", () => {
+    // Active le mode ou un clic sur une carte ouvre le formulaire de modification.
     currentMode = "edit";
     editingCategoryId = null;
     clearDeleteSelection();
@@ -853,6 +894,7 @@ function setupFormEvents() {
   });
 
   enterDeleteModeBtn.addEventListener("click", () => {
+    // Active le mode ou les cartes deviennent selectionnables.
     currentMode = "delete";
     editingCategoryId = null;
     clearDeleteSelection();
@@ -861,6 +903,7 @@ function setupFormEvents() {
   });
 
   exitActionModeBtn.addEventListener("click", () => {
+    // Retour au mode lecture simple.
     currentMode = "view";
     editingCategoryId = null;
     clearDeleteSelection();
@@ -869,6 +912,7 @@ function setupFormEvents() {
   });
 
   cardsGrid.addEventListener("click", async (event) => {
+    // Un seul ecouteur gere les clics sur toutes les cartes et boutons internes.
     if (isLoading || isDeletingSelection) return;
 
     const defaultCategoryButton = event.target.closest("[data-default-category]");

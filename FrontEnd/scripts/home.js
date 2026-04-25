@@ -14,9 +14,9 @@ const LOGIN_REASON_QUERY_KEY = "reason";
 const AUTH_REQUIRED_REASON = "auth-required";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
-const UNLOCKED_CATEGORIES_STORAGE_KEY = "savenest_unlocked_categories";
 const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
 
+// La page d'accueil est privee : si le token manque ou est expire, on sort tout de suite.
 if (!hasUsableAuthToken()) {
   clearStoredAuthSession();
   redirectToLogin();
@@ -28,9 +28,11 @@ setFooter();
 
 const cardsContainerEl = document.querySelector(".js_content");
 
+// Etat de la page.
+// categories et favs viennent de l'API, les autres variables viennent du navigateur.
 let categories = [];
 let favs = [];
-let unlockedCategoryIds = loadUnlockedCategories();
+let unlockedCategoryIds = [];
 let unlockErrorsByCategoryId = {};
 
 const bannerHtml = `
@@ -41,44 +43,10 @@ const bannerHtml = `
 document.querySelector(".js_banner").innerHTML = bannerHtml;
 
 // Les fonctions suivantes lisent et ecrivent les donnees locales du navigateur.
-function loadUnlockedCategories() {
-  try {
-    const rawValue = sessionStorage.getItem(UNLOCKED_CATEGORIES_STORAGE_KEY);
-
-    if (!rawValue) {
-      return [];
-    }
-
-    const parsedValue = JSON.parse(rawValue);
-
-    if (!Array.isArray(parsedValue)) {
-      return [];
-    }
-
-    const unlockedIds = [];
-
-    for (let index = 0; index < parsedValue.length; index += 1) {
-      const categoryId = String(parsedValue[index]);
-
-      if (!unlockedIds.includes(categoryId)) {
-        unlockedIds.push(categoryId);
-      }
-    }
-
-    return unlockedIds;
-  } catch (error) {
-    return [];
-  }
-}
-
-function persistUnlockedCategories() {
-  sessionStorage.setItem(
-    UNLOCKED_CATEGORIES_STORAGE_KEY,
-    JSON.stringify(unlockedCategoryIds)
-  );
-}
-
+// Par securite, les categories deverrouillees ne sont pas stockees :
+// unlockedCategoryIds reste en memoire uniquement pendant la vie de cette page.
 function loadCategoryOrder() {
+  // L'ordre des categories est personnel et garde en local.
   try {
     const rawValue = localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
 
@@ -105,6 +73,7 @@ function loadCategoryOrder() {
 }
 
 function persistCategoryOrder(categoryOrderIds) {
+  // Sauvegarde l'ordre calcule pour le retrouver au prochain chargement.
   localStorage.setItem(
     CATEGORY_ORDER_STORAGE_KEY,
     JSON.stringify(categoryOrderIds)
@@ -112,6 +81,8 @@ function persistCategoryOrder(categoryOrderIds) {
 }
 
 function getCategoryOrderIndex(orderIds, categoryId) {
+  // Si une categorie n'est pas encore dans l'ordre stocke,
+  // on la place naturellement a la fin.
   const normalizedCategoryId = String(categoryId);
 
   for (let index = 0; index < orderIds.length; index += 1) {
@@ -124,6 +95,10 @@ function getCategoryOrderIndex(orderIds, categoryId) {
 }
 
 function sortCategoriesByStoredOrder(list) {
+  // Cette fonction garde un ordre stable :
+  // 1. ordre deja connu en local,
+  // 2. nouvelles categories ajoutees a la fin,
+  // 3. tri par ID en cas d'egalite.
   const storedOrderIds = loadCategoryOrder();
   const currentIds = [];
 
@@ -172,15 +147,19 @@ function sortCategoriesByStoredOrder(list) {
 }
 
 function getAuthToken() {
+  // Le token JWT est la preuve de connexion envoyee au backend.
   return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 }
 
 function clearStoredAuthSession() {
+  // Nettoyage minimal si le token n'est plus utilisable.
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
 }
 
 function decodeJwtPayload(token) {
+  // Decode seulement la partie payload du JWT pour lire son expiration.
+  // On ne valide pas la signature ici : le backend le fera a chaque requete.
   try {
     const [, payload] = token.split(".");
 
@@ -202,6 +181,7 @@ function decodeJwtPayload(token) {
 }
 
 function hasUsableAuthToken() {
+  // Evite de charger la page avec un token absent ou deja expire.
   const token = getAuthToken();
 
   if (!token) {
@@ -218,6 +198,8 @@ function hasUsableAuthToken() {
 }
 
 function redirectToLogin() {
+  // On conserve la raison dans l'URL pour que la page de connexion puisse afficher
+  // un message adapte.
   const destinationUrl = new URL(LOGIN_PAGE_URL);
   destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, AUTH_REQUIRED_REASON);
   destinationUrl.hash = "#login";
@@ -225,6 +207,8 @@ function redirectToLogin() {
 }
 
 async function parseJsonSafely(response) {
+  // Certaines reponses peuvent etre vides.
+  // Cette fonction evite qu'un await response.json() fasse planter toute la page.
   try {
     return await response.json();
   } catch (error) {
@@ -233,10 +217,12 @@ async function parseJsonSafely(response) {
 }
 
 function showHomeMessage(message) {
+  // Affiche un message simple dans la zone des cartes.
   cardsContainerEl.innerHTML = `<p class="empty-item">${message}</p>`;
 }
 
 function getHomeErrorMessage(error) {
+  // Transforme les erreurs techniques en messages comprehensibles.
   if (error && error.name === "TypeError") {
     return getServerUnavailableMessage();
   }
@@ -259,6 +245,7 @@ async function fetchWithAuth(path, options = {}) {
 
   const headers = {};
 
+  // On copie les headers existants pour ne pas ecraser Content-Type.
   if (options.headers && typeof options.headers === "object") {
     const headerNames = Object.keys(options.headers);
 
@@ -301,6 +288,7 @@ async function fetchWithAuth(path, options = {}) {
 }
 
 async function loadHomeData() {
+  // Charge les deux ressources necessaires a l'accueil.
   showHomeMessage("Chargement de vos favoris...");
 
   try {
@@ -327,6 +315,7 @@ async function loadHomeData() {
 }
 
 async function requestCategoryUnlock(categoryId, password) {
+  // Appel API dedie : le backend verifie le mot de passe.
   return fetchWithAuth(`/categories/${categoryId}/unlock`, {
     method: "POST",
     headers: {
@@ -337,6 +326,7 @@ async function requestCategoryUnlock(categoryId, password) {
 }
 
 function getUnlockErrorMessage(error) {
+  // Uniformise les messages d'erreur venant du backend.
   let message = "";
 
   if (error && typeof error.message === "string") {
@@ -358,6 +348,7 @@ function getUnlockErrorMessage(error) {
 }
 
 function getCategoryPrivacy(category) {
+  // Le backend peut renvoyer 0/1, mais on convertit vers des mots plus lisibles.
   const confidentiality = category.confidentiality;
   const normalizedConfidentiality = String(confidentiality || "").toLowerCase();
 
@@ -377,10 +368,12 @@ function getCategoryPrivacy(category) {
 }
 
 function isCategoryUnlocked(categoryId) {
+  // Simple lecture de l'etat local de la page.
   return unlockedCategoryIds.includes(String(categoryId));
 }
 
 function getFavicon(url) {
+  // Google fournit une petite icone a partir du domaine d'une URL.
   try {
     const parsedUrl = new URL(url);
     return `https://www.google.com/s2/favicons?domain=${parsedUrl.hostname}&sz=64`;
@@ -391,6 +384,7 @@ function getFavicon(url) {
 }
 
 function getFavItemMarkup(fav) {
+  // Genere le HTML d'un favori dans une carte.
   const faviconUrl = getFavicon(fav.url_favs);
   const hasUrl =
     typeof fav.url_favs === "string" && fav.url_favs.trim() !== "";
@@ -421,6 +415,7 @@ function getFavItemMarkup(fav) {
 }
 
 function getFavsOfCategory(categoryId) {
+  // Filtre manuel pour garder une lecture facile.
   const categoryFavs = [];
 
   for (let index = 0; index < favs.length; index += 1) {
@@ -435,6 +430,7 @@ function getFavsOfCategory(categoryId) {
 }
 
 function removeUnlockError(categoryId) {
+  // Retire uniquement l'erreur de la categorie qui vient d'etre deverrouillee.
   const nextErrors = {};
   const errorKeys = Object.keys(unlockErrorsByCategoryId);
 
@@ -524,6 +520,7 @@ function renderHomeCards() {
 }
 
 function findCategoryById(categoryId) {
+  // Recherche simple dans le tableau categories.
   for (let index = 0; index < categories.length; index += 1) {
     const category = categories[index];
 
@@ -536,6 +533,7 @@ function findCategoryById(categoryId) {
 }
 
 function createUnlockModal(categoryName) {
+  // Cree la modale en JS car elle n'apparait que lorsqu'on en a besoin.
   const modalEl = document.createElement("div");
   modalEl.className = "unlock-modal";
   modalEl.innerHTML = `
@@ -565,6 +563,9 @@ function createUnlockModal(categoryName) {
 }
 
 function askCategoryPassword(categoryName) {
+  // Promise qui se resout avec :
+  // - le mot de passe saisi,
+  // - null si l'utilisateur annule.
   return new Promise((resolve) => {
     const modalEl = createUnlockModal(categoryName);
     const formEl = modalEl.querySelector(".unlock-modal__form");
@@ -574,6 +575,7 @@ function askCategoryPassword(categoryName) {
     );
 
     function closeModal(value) {
+      // On retire l'ecouteur clavier pour eviter les ecouteurs fantomes.
       document.removeEventListener("keydown", handleKeydown);
       modalEl.remove();
       resolve(value);
@@ -635,7 +637,6 @@ cardsContainerEl.addEventListener("click", async function handleCardsClick(event
         unlockedCategoryIds.push(categoryId);
       }
 
-      persistUnlockedCategories();
       renderHomeCards();
     } catch (error) {
       unlockErrorsByCategoryId[categoryId] = getUnlockErrorMessage(error);
@@ -661,7 +662,6 @@ cardsContainerEl.addEventListener("click", async function handleCardsClick(event
   }
 
   unlockedCategoryIds = nextUnlockedCategoryIds;
-  persistUnlockedCategories();
   renderHomeCards();
 });
 

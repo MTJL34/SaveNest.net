@@ -4,6 +4,8 @@ import { isPrivilegedUser } from "../middlewares/auth.js";
 
 // Les fonctions utilitaires du haut evitent de repeter les memes verifications.
 function parsePositiveId(value) {
+  // Les IDs peuvent venir de l'URL ou du body.
+  // Cette fonction garde une seule definition de "ID valide" dans le fichier.
   const id = Number(value);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -14,10 +16,12 @@ function parsePositiveId(value) {
 }
 
 function canAccessUserOwnedResource(req, ownerId) {
+  // Admin et moderateur peuvent manipuler les donnees de tous les utilisateurs.
   if (isPrivilegedUser(req.authUser)) {
     return true;
   }
 
+  // Un utilisateur classique doit etre le proprietaire.
   if (!req.authUser) {
     return false;
   }
@@ -25,6 +29,8 @@ function canAccessUserOwnedResource(req, ownerId) {
   return req.authUser.id_user === ownerId;
 }
 
+// Morceau de SQL reutilise dans plusieurs fonctions.
+// On joint favs et category pour connaitre le proprietaire de chaque favori.
 const favSelectQuery = `
   SELECT
     f.id_favs,
@@ -41,6 +47,7 @@ const favSelectQuery = `
 `;
 
 async function getRawFavById(id) {
+  // Lecture simple sans categorie. Utile en secours juste apres une creation.
   const [rows] = await connection.execute(
     "SELECT id_favs, title_favs, url_favs, added_date, logo, id_category FROM favs WHERE id_favs = ?",
     [id]
@@ -54,6 +61,8 @@ async function getRawFavById(id) {
 }
 
 async function getCategoryRowById(idCategory) {
+  // Un favori appartient toujours a une categorie.
+  // On lit donc la categorie avant de creer ou deplacer un favori.
   const [rows] = await connection.execute(
     "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_category = ?",
     [idCategory]
@@ -67,11 +76,13 @@ async function getCategoryRowById(idCategory) {
 }
 
 async function getJoinedFavById(id, authUser) {
+  // Lecture d'un favori avec controle du proprietaire.
   let query = `${favSelectQuery}
     WHERE f.id_favs = ? AND c.id_user = ?`;
   let values = [id, authUser.id_user];
 
   if (isPrivilegedUser(authUser)) {
+    // Les roles privilegies n'ont pas besoin du filtre c.id_user.
     query = `${favSelectQuery}
     WHERE f.id_favs = ?`;
     values = [id];
@@ -88,12 +99,14 @@ async function getJoinedFavById(id, authUser) {
 
 export async function getAllFavs(req, res) {
   try {
+    // Par defaut : seulement les favoris des categories de l'utilisateur connecte.
     let query = `${favSelectQuery}
       WHERE c.id_user = ?
       ORDER BY f.id_favs ASC`;
     let values = [req.authUser.id_user];
 
     if (isPrivilegedUser(req.authUser)) {
+      // Admin/moderateur : tous les favoris.
       query = `${favSelectQuery}
       ORDER BY f.id_favs ASC`;
       values = [];
@@ -109,6 +122,7 @@ export async function getAllFavs(req, res) {
 
 export async function getFavById(req, res) {
   try {
+    // On valide l'ID avant la requete SQL pour eviter les cas incoherents.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {
@@ -131,6 +145,7 @@ export async function getFavById(req, res) {
 export async function createFav(req, res) {
   // Un favori doit toujours appartenir a une categorie existante.
   try {
+    // Nettoyage des valeurs envoyees par le formulaire.
     const body = req.body;
     const title = typeof body.title_favs === "string" ? body.title_favs.trim() : "";
     const url = typeof body.url_favs === "string" ? body.url_favs.trim() : null;
@@ -153,6 +168,7 @@ export async function createFav(req, res) {
     }
 
     if (!canAccessUserOwnedResource(req, targetCategory.id_user)) {
+      // Un utilisateur ne peut pas ajouter un favori dans la categorie d'un autre.
       return res.status(403).json({ message: "Accès refusé." });
     }
 
@@ -179,6 +195,7 @@ export async function createFav(req, res) {
 
 export async function updateFav(req, res) {
   try {
+    // On lit le favori actuel pour faire une mise a jour partielle.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {
@@ -192,6 +209,7 @@ export async function updateFav(req, res) {
     }
 
     const body = req.body;
+    // Si un champ est absent, on garde l'ancienne valeur.
     const nextTitle =
       body.title_favs === undefined
         ? currentFav.title_favs
@@ -230,6 +248,7 @@ export async function updateFav(req, res) {
     }
 
     if (!canAccessUserOwnedResource(req, targetCategory.id_user)) {
+      // Cette verification protege aussi le deplacement vers une categorie interdite.
       return res.status(403).json({ message: "Accès refusé." });
     }
 
@@ -252,6 +271,7 @@ export async function updateFav(req, res) {
 
 export async function deleteFav(req, res) {
   try {
+    // La lecture avec jointure sert aussi de controle d'autorisation.
     const id = parsePositiveId(req.params.id);
 
     if (!id) {

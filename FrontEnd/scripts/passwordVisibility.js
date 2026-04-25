@@ -2,6 +2,7 @@ const CLOSED_EGG_IMAGE_URL = new URL("../img/egg-full.png", import.meta.url).hre
 const OPEN_EGG_IMAGE_URL = new URL("../img/egg-1.gif", import.meta.url).href;
 
 function getEggIconMarkup(isVisible) {
+  // Le bouton reutilise les images du projet pour montrer l'etat du champ.
   const imageUrl = isVisible ? OPEN_EGG_IMAGE_URL : CLOSED_EGG_IMAGE_URL;
   const altText = isVisible ? "Mot de passe montré" : "Mot de passe caché";
 
@@ -16,6 +17,8 @@ function getEggIconMarkup(isVisible) {
 }
 
 function renderPasswordToggle(toggleButton, isVisible) {
+  // Cette fonction synchronise tout ce qui depend de l'etat visible/cache :
+  // attributs d'accessibilite, classe CSS, image et texte cache pour lecteurs d'ecran.
   const toggleStatus = toggleButton.parentElement
     ? toggleButton.parentElement.querySelector(".password-visibility-status")
     : null;
@@ -38,6 +41,8 @@ function renderPasswordToggle(toggleButton, isVisible) {
 }
 
 export function enhancePasswordFields(root = document) {
+  // Fonction appelee apres le rendu des formulaires.
+  // Elle transforme automatiquement chaque input password en champ avec bouton afficher/masquer.
   if (!root || typeof root.querySelectorAll !== "function") {
     return;
   }
@@ -56,9 +61,11 @@ export function enhancePasswordFields(root = document) {
     }
 
     if (input.dataset.passwordToggleReady === "true") {
+      // Evite d'ajouter deux boutons si la fonction est appelee plusieurs fois.
       continue;
     }
 
+    // On enveloppe l'input dans une div pour positionner le bouton en CSS.
     const wrapper = document.createElement("div");
     wrapper.className = "password-field";
 
@@ -77,6 +84,7 @@ export function enhancePasswordFields(root = document) {
     `;
 
     toggleButton.addEventListener("click", () => {
+      // Clic : on inverse simplement le type du champ.
       const shouldReveal = input.type === "password";
 
       input.type = shouldReveal ? "text" : "password";

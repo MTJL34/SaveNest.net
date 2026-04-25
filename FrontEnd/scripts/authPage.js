@@ -86,6 +86,8 @@ const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const DEFAULT_CATEGORY_STORAGE_KEY = "savenest_default_category";
 
 function normalizeAuthPageOrigin() {
+  // Si la page est ouverte depuis une autre origine que celle calculee par l'app,
+  // on redirige vers l'URL canonique pour garder les liens et fetch coherents.
   const destinationUrl = new URL(LOGIN_PAGE_URL);
 
   if (window.location.origin === destinationUrl.origin) {
@@ -108,6 +110,7 @@ function normalizeAuthPageOrigin() {
 normalizeAuthPageOrigin();
 
 function getModeFromHash() {
+  // L'URL choisit l'onglet actif : #signup ou #login.
   if (window.location.hash === "#signup") {
     return "signup";
   }
@@ -116,6 +119,7 @@ function getModeFromHash() {
 }
 
 function showLoginReasonMessage() {
+  // Affiche un message si l'utilisateur arrive ici apres expiration ou deconnexion.
   const currentUrl = new URL(window.location.href);
   const loginReason = currentUrl.searchParams.get(LOGIN_REASON_QUERY_KEY);
 
@@ -140,6 +144,7 @@ function showLoginReasonMessage() {
 }
 
 function updateAside(mode) {
+  // Met a jour le texte de la colonne de gauche selon le mode actif.
   const content = authContent[mode];
 
   if (!content) {
@@ -159,6 +164,7 @@ function updateAside(mode) {
 }
 
 function setActiveMode(mode, options = {}) {
+  // Change l'interface entre connexion et inscription.
   const { updateHash = true } = options;
   const safeMode = mode === "signup" ? "signup" : "login";
 
@@ -186,12 +192,14 @@ function setActiveMode(mode, options = {}) {
 }
 
 function getSelectedLanguageInputs() {
+  // Renvoie les cases de langues cochees dans le formulaire d'inscription.
   return Array.from(
     signupForm.querySelectorAll('input[name="spoken_languages"]:checked')
   );
 }
 
 function getSelectedLanguages() {
+  // Transforme les inputs coches en tableau de noms de langues.
   const selectedInputs = getSelectedLanguageInputs();
   const selectedLanguages = [];
 
@@ -203,6 +211,7 @@ function getSelectedLanguages() {
 }
 
 function getSelectedLanguageLabels() {
+  // Recupere les libelles visibles pour resumer le choix de l'utilisateur.
   const selectedInputs = getSelectedLanguageInputs();
   const selectedLabels = [];
 
@@ -230,6 +239,7 @@ function getSelectedLanguageLabels() {
 }
 
 function formatSelectedLanguagesSummary() {
+  // Texte affiche sur le bouton du menu de langues.
   const selectedLanguageLabels = getSelectedLanguageLabels();
 
   if (selectedLanguageLabels.length === 0) {
@@ -248,6 +258,7 @@ function formatSelectedLanguagesSummary() {
 }
 
 function openLanguagesSelect() {
+  // Ouvre le menu personnalise de choix des langues.
   if (!languagesSelectEl || !languagesTriggerEl) {
     return;
   }
@@ -257,6 +268,7 @@ function openLanguagesSelect() {
 }
 
 function closeLanguagesSelect() {
+  // Ferme le menu de langues.
   if (!languagesSelectEl || !languagesTriggerEl) {
     return;
   }
@@ -266,6 +278,7 @@ function closeLanguagesSelect() {
 }
 
 function syncLanguageOptionStates() {
+  // Met a jour l'apparence des options de langues apres chaque coche.
   for (let index = 0; index < languageCheckboxes.length; index += 1) {
     const checkbox = languageCheckboxes[index];
     const option = checkbox.closest(".language-option");
@@ -294,6 +307,7 @@ function syncLanguageOptionStates() {
 }
 
 function syncLanguageCheckboxesFromStorage() {
+  // Recharge les langues deja choisies lors d'une session precedente.
   try {
     const raw = localStorage.getItem(USER_LANGUAGES_STORAGE_KEY);
     if (!raw) {
@@ -317,6 +331,7 @@ function syncLanguageCheckboxesFromStorage() {
 }
 
 function refreshHeaderLanguages(preferredLanguage = null) {
+  // Sauvegarde les langues cochees puis reconstruit le header.
   const selectedLanguages = getSelectedLanguages();
 
   if (selectedLanguages.length === 0) {
@@ -331,6 +346,7 @@ function refreshHeaderLanguages(preferredLanguage = null) {
 }
 
 function setFeedback(element, message, type = "") {
+  // Affiche un message de formulaire avec une classe d'etat.
   if (!element) {
     return;
   }
@@ -344,6 +360,7 @@ function setFeedback(element, message, type = "") {
 }
 
 function setSubmitState(form, isLoading, defaultLabel, loadingLabel) {
+  // Evite les doubles clics pendant un appel API.
   if (!form) {
     return;
   }
@@ -359,6 +376,7 @@ function setSubmitState(form, isLoading, defaultLabel, loadingLabel) {
 }
 
 const parseJsonSafely = async (response) => {
+  // Certaines erreurs serveur peuvent ne pas contenir de JSON.
   try {
     return await response.json();
   } catch (error) {
@@ -367,6 +385,7 @@ const parseJsonSafely = async (response) => {
 };
 
 const saveAuthSession = ({ token, user }) => {
+  // Stocke ce dont les autres pages ont besoin pour reconnaitre l'utilisateur.
   if (typeof token === "string" && token.trim() !== "") {
     localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
   }
@@ -385,6 +404,8 @@ const saveAuthSession = ({ token, user }) => {
 };
 
 function getLanguageNamesFromUser(user) {
+  // L'API peut renvoyer les langues sous forme d'objets.
+  // Le front garde seulement leurs noms.
   if (!user || !Array.isArray(user.spoken_languages)) {
     return [];
   }
@@ -410,6 +431,7 @@ function getLanguageNamesFromUser(user) {
 }
 
 const getPostLoginRedirectUrl = ({ token, user }) => {
+  // En cas de changement d'origine, on transfere temporairement la session dans l'URL.
   const destinationUrl = new URL(HOME_PAGE_URL);
 
   if (window.location.origin === destinationUrl.origin) {
@@ -431,12 +453,14 @@ const getPostLoginRedirectUrl = ({ token, user }) => {
 };
 
 switchButtons.forEach((button) => {
+  // Boutons principaux de bascule connexion/inscription.
   button.addEventListener("click", () => {
     setActiveMode(button.dataset.authTarget);
   });
 });
 
 window.addEventListener("hashchange", () => {
+  // Si l'utilisateur change directement le hash de l'URL, l'interface suit.
   setActiveMode(getModeFromHash(), { updateHash: false });
 });
 
@@ -452,12 +476,14 @@ if (languagesTriggerEl) {
 }
 
 document.addEventListener("click", (event) => {
+  // Clic hors du menu des langues : on le ferme.
   if (!languagesSelectEl) return;
   if (languagesSelectEl.contains(event.target)) return;
   closeLanguagesSelect();
 });
 
 document.addEventListener("keydown", (event) => {
+  // Echap ferme le menu des langues.
   if (event.key === "Escape") {
     closeLanguagesSelect();
   }
@@ -469,12 +495,14 @@ setActiveMode(getModeFromHash(), { updateHash: false });
 showLoginReasonMessage();
 
 inlineSwitchButtons.forEach((button) => {
+  // Liens secondaires places dans les textes des formulaires.
   button.addEventListener("click", () => {
     setActiveMode(button.dataset.authTarget);
   });
 });
 
 languageCheckboxes.forEach((checkbox) => {
+  // Chaque changement de langue met a jour le resume et le header.
   checkbox.addEventListener("change", () => {
     syncLanguageOptionStates();
 

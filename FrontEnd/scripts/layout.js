@@ -217,6 +217,8 @@ export function saveUserLanguagePreferences(
   selectedLanguages,
   preferredActiveLanguage = null
 ) {
+  // Cette fonction est utilisee apres connexion/inscription.
+  // Elle garde en local les langues choisies par l'utilisateur.
   const normalizedLanguages = keepUniqueLanguageNames(selectedLanguages);
 
   if (normalizedLanguages.length === 0) {
@@ -306,6 +308,7 @@ function hydrateTransferredAuthSession() {
 hydrateTransferredAuthSession();
 
 function buildLanguageOptionsMarkup(selectedLanguages, activeLanguage) {
+  // Construit les <option> du select de langue.
   let html = "";
 
   for (let index = 0; index < selectedLanguages.length; index += 1) {
@@ -329,6 +332,7 @@ function buildLanguageOptionsMarkup(selectedLanguages, activeLanguage) {
 }
 
 function getHeaderMarkup(selectedLanguages, activeLanguage) {
+  // Le header est genere en JS pour etre partage par toutes les pages.
   const currentLanguage =
     LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
   const languageOptionsMarkup = buildLanguageOptionsMarkup(
@@ -374,6 +378,7 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
 }
 
 function clearAuthSession() {
+  // Deconnexion locale : on retire tout ce qui prouve que l'utilisateur est connecte.
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
   localStorage.removeItem(DEFAULT_CATEGORY_STORAGE_KEY);
@@ -381,6 +386,7 @@ function clearAuthSession() {
 }
 
 function redirectAfterLogout() {
+  // Apres deconnexion, on renvoie vers l'onglet connexion avec une raison dans l'URL.
   const destinationUrl = new URL("../html/connexion.html", window.location.href);
   destinationUrl.searchParams.set(LOGIN_REASON_QUERY_KEY, LOGGED_OUT_REASON);
   destinationUrl.hash = "#login";
@@ -388,6 +394,8 @@ function redirectAfterLogout() {
 }
 
 async function notifyLogoutEndpoint(token) {
+  // Cette notification serveur est utile, mais non bloquante.
+  // Meme si elle echoue, on deconnecte quand meme l'utilisateur cote navigateur.
   if (!token) {
     return;
   }
@@ -405,6 +413,8 @@ async function notifyLogoutEndpoint(token) {
 }
 
 function showLogoutConfirmModal() {
+  // On renvoie une Promise pour pouvoir ecrire ensuite :
+  // const shouldLogout = await showLogoutConfirmModal();
   return new Promise((resolve) => {
     const modalEl = document.createElement("div");
     modalEl.className = "logout-modal";
@@ -425,6 +435,7 @@ function showLogoutConfirmModal() {
     const confirmButton = modalEl.querySelector("[data-logout-confirm]");
 
     function closeModal(value) {
+      // Toujours nettoyer les ecouteurs avant de supprimer la modale.
       document.removeEventListener("keydown", handleKeydown);
       modalEl.remove();
       resolve(value);
@@ -464,6 +475,7 @@ function showLogoutConfirmModal() {
 }
 
 async function handleLogout() {
+  // Flux complet de deconnexion : confirmation, nettoyage local, appel serveur, redirection.
   const shouldLogout = await showLogoutConfirmModal();
 
   if (!shouldLogout) {
@@ -485,6 +497,8 @@ export const headerMarkup = getHeaderMarkup(
 );
 
 function markLayoutReady() {
+  // Ajoute une classe sur body quand header et footer sont injectes.
+  // Cela permet au CSS d'eviter les petits sauts visuels au chargement.
   const bodyEl = document.body;
 
   if (!bodyEl) {
@@ -526,6 +540,7 @@ function renderHeader(headerEl) {
   }
 
   function syncHeaderEgg() {
+    // Le bouton de l'oeuf garde son image, son aria-label et sa classe en accord.
     if (!eggToggle || !eggImg) {
       return;
     }
@@ -556,6 +571,7 @@ function renderHeader(headerEl) {
 }
 
 export function setHeader() {
+  // Fonction publique appelee dans chaque page.
   const headerEl = document.querySelector(".js_header");
 
   if (!headerEl) {
@@ -566,6 +582,7 @@ export function setHeader() {
 }
 
 export function setFooter() {
+  // Fonction publique appelee dans chaque page.
   const footerEl = document.querySelector(".js_footer");
 
   if (!footerEl) {
@@ -585,6 +602,7 @@ export function setFooter() {
 }
 
 export function injectLayout() {
+  // Raccourci si une page veut injecter header et footer en une seule fois.
   setHeader();
   setFooter();
 }

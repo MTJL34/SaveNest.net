@@ -432,6 +432,13 @@ body.page {
   box-shadow: 0 0 0 2px rgba(180, 134, 92, 0.12);
 }
 
+.edit-category-pill.favorite-drop-active {
+  border-color: var(--brand-500);
+  background: var(--sn-surface);
+  box-shadow: 0 0 0 3px rgba(180, 134, 92, 0.18);
+  transform: translateY(-1px);
+}
+
 .edit-category-pill-main {
   display: grid;
   gap: 0.16rem;
