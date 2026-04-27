@@ -1,23 +1,347 @@
-categories
-Create : POST http://localhost:3000/api/categories
-Read : GET http://localhost:3000/api/categories
-Read by ID : GET http://localhost:3000/api/categories/ID
-Unlock private category : POST http://localhost:3000/api/categories/ID/unlock
-Update : PATCH http://localhost:3000/api/categories/ID
-Delete : DELETE http://localhost:3000/api/categories/ID
+CRUD SaveNest
+Base URL : http://localhost:3000/api
 
-favs
-Create : POST http://localhost:3000/api/favs
-Read : GET http://localhost:3000/api/favs
-Read by ID : GET http://localhost:3000/api/favs/ID
-Update : PATCH http://localhost:3000/api/favs/ID
-Delete : DELETE http://localhost:3000/api/favs/ID
+Regle generale :
+- Les routes register et login sont publiques.
+- Toutes les autres routes demandent un token :
+  Authorization: Bearer TOKEN
+- Remplace ID par le vrai nombre de l'element.
 
-auth / users
-List users : GET http://localhost:3000/api/auth
-Register : POST http://localhost:3000/api/auth/register
-Login : POST http://localhost:3000/api/auth/login
-Logout : GET http://localhost:3000/api/auth/logout
-Read user by ID : GET http://localhost:3000/api/auth/ID
-Update user : PATCH http://localhost:3000/api/auth/ID
-Delete user : DELETE http://localhost:3000/api/auth/ID
+Exemple :
+GET http://localhost:3000/api/categories/6
+
+============================================================
+1. AUTH / USERS
+============================================================
+
+Objectif :
+Gerer l'inscription, la connexion et les utilisateurs.
+
+------------------------------------------------------------
+CREATE
+------------------------------------------------------------
+
+Creer un compte
+POST /auth/register
+URL complete : http://localhost:3000/api/auth/register
+Token : non
+
+Body :
+{
+  "pseudo": "Neo",
+  "mail": "neo@savenest.test",
+  "password": "NeoPass123!",
+  "spoken_languages": ["French", "English"]
+}
+
+------------------------------------------------------------
+READ
+------------------------------------------------------------
+
+Lire tous les utilisateurs
+GET /auth
+URL complete : http://localhost:3000/api/auth
+Token : oui
+Droits : ADMIN ou MODERATOR
+
+Lire un utilisateur par ID
+GET /auth/ID
+URL complete : http://localhost:3000/api/auth/4
+Token : oui
+Droits : l'utilisateur lui-meme, ADMIN ou MODERATOR
+
+------------------------------------------------------------
+UPDATE
+------------------------------------------------------------
+
+Modifier un utilisateur
+PATCH /auth/ID
+URL complete : http://localhost:3000/api/auth/4
+Token : oui
+Droits : l'utilisateur lui-meme ou ADMIN
+
+Body possible :
+{
+  "pseudo": "MTJL",
+  "mail": "leroy.mathiieu@gmail.com",
+  "password": "NouveauMotDePasse",
+  "default_category_id": 6
+}
+
+Notes :
+- En PATCH, tu n'es pas oblige d'envoyer tous les champs.
+- default_category_id peut etre null pour retirer la categorie par defaut.
+
+------------------------------------------------------------
+DELETE
+------------------------------------------------------------
+
+Supprimer un utilisateur
+DELETE /auth/ID
+URL complete : http://localhost:3000/api/auth/4
+Token : oui
+Droits : ADMIN uniquement
+
+------------------------------------------------------------
+AUTRES ACTIONS AUTH
+------------------------------------------------------------
+
+Se connecter
+POST /auth/login
+URL complete : http://localhost:3000/api/auth/login
+Token : non
+
+Body avec mail ou pseudo :
+{
+  "identifier": "neo@savenest.test",
+  "password": "NeoPass123!"
+}
+
+Variantes acceptees :
+{
+  "mail": "neo@savenest.test",
+  "password": "NeoPass123!"
+}
+
+{
+  "pseudo": "Neo",
+  "password": "NeoPass123!"
+}
+
+Se deconnecter
+GET /auth/logout
+URL complete : http://localhost:3000/api/auth/logout
+Token : oui
+
+============================================================
+2. CATEGORIES
+============================================================
+
+Objectif :
+Creer, lire, modifier, supprimer et deverrouiller des categories.
+
+------------------------------------------------------------
+CREATE
+------------------------------------------------------------
+
+Creer une categorie publique
+POST /categories
+URL complete : http://localhost:3000/api/categories
+Token : oui
+
+Body :
+{
+  "category_name": "Travail",
+  "confidentiality": 0,
+  "password": null
+}
+
+Creer une categorie privee
+POST /categories
+URL complete : http://localhost:3000/api/categories
+Token : oui
+
+Body :
+{
+  "category_name": "Lectures",
+  "confidentiality": 1,
+  "password": "Test123"
+}
+
+Notes :
+- confidentiality = 0 veut dire publique.
+- confidentiality = 1 veut dire privee.
+- Une categorie privee doit avoir un password.
+- Si tu ne donnes pas id_user, la categorie appartient a l'utilisateur connecte.
+
+------------------------------------------------------------
+READ
+------------------------------------------------------------
+
+Lire toutes les categories accessibles
+GET /categories
+URL complete : http://localhost:3000/api/categories
+Token : oui
+
+Lire une categorie par ID
+GET /categories/ID
+URL complete : http://localhost:3000/api/categories/6
+Token : oui
+
+------------------------------------------------------------
+UPDATE
+------------------------------------------------------------
+
+Modifier une categorie
+PATCH /categories/ID
+URL complete : http://localhost:3000/api/categories/6
+Token : oui
+
+Body possible :
+{
+  "category_name": "Travail perso",
+  "confidentiality": 0,
+  "password": ""
+}
+
+Rendre une categorie publique privee :
+{
+  "confidentiality": 1,
+  "password": "NouveauMotDePasse"
+}
+
+Rendre une categorie privee publique :
+{
+  "confidentiality": 0,
+  "password": "MotDePasseActuel"
+}
+
+Modifier une categorie deja privee :
+{
+  "category_name": "Lectures importantes",
+  "confidentiality": 1,
+  "password": "MotDePasseActuel"
+}
+
+Notes :
+- En PATCH, tu peux envoyer seulement les champs a modifier.
+- Si la categorie est deja privee, le mot de passe actuel est demande.
+
+------------------------------------------------------------
+DELETE
+------------------------------------------------------------
+
+Supprimer une categorie
+DELETE /categories/ID
+URL complete : http://localhost:3000/api/categories/6
+Token : oui
+
+------------------------------------------------------------
+ACTION SPECIALE
+------------------------------------------------------------
+
+Deverrouiller une categorie privee
+POST /categories/ID/unlock
+URL complete : http://localhost:3000/api/categories/6/unlock
+Token : oui
+
+Body :
+{
+  "password": "Test123"
+}
+
+Note :
+Cette route verifie le mot de passe, mais ne modifie pas la base de donnees.
+
+============================================================
+3. FAVS / FAVORIS
+============================================================
+
+Objectif :
+Creer, lire, modifier et supprimer des favoris.
+
+------------------------------------------------------------
+CREATE
+------------------------------------------------------------
+
+Creer un favori
+POST /favs
+URL complete : http://localhost:3000/api/favs
+Token : oui
+
+Body minimum :
+{
+  "title_favs": "OpenAI",
+  "id_category": 6
+}
+
+Body complet possible :
+{
+  "title_favs": "OpenAI",
+  "url_favs": "https://openai.com",
+  "added_date": "2026-04-25",
+  "logo": null,
+  "id_category": 6
+}
+
+Notes :
+- title_favs est obligatoire.
+- id_category est obligatoire.
+- url_favs est facultatif.
+
+------------------------------------------------------------
+READ
+------------------------------------------------------------
+
+Lire tous les favoris accessibles
+GET /favs
+URL complete : http://localhost:3000/api/favs
+Token : oui
+
+Lire un favori par ID
+GET /favs/ID
+URL complete : http://localhost:3000/api/favs/12
+Token : oui
+
+------------------------------------------------------------
+UPDATE
+------------------------------------------------------------
+
+Modifier un favori
+PATCH /favs/ID
+URL complete : http://localhost:3000/api/favs/12
+Token : oui
+
+Body possible :
+{
+  "title_favs": "OpenAI Docs",
+  "url_favs": "https://platform.openai.com/docs",
+  "id_category": 6
+}
+
+Deplacer un favori vers une autre categorie :
+{
+  "id_category": 2
+}
+
+Notes :
+- En PATCH, tu peux envoyer seulement les champs a modifier.
+- title_favs ne peut pas etre vide.
+- id_category doit etre une categorie existante et accessible.
+
+------------------------------------------------------------
+DELETE
+------------------------------------------------------------
+
+Supprimer un favori
+DELETE /favs/ID
+URL complete : http://localhost:3000/api/favs/12
+Token : oui
+
+============================================================
+RESUME ULTRA COURT
+============================================================
+
+AUTH / USERS
+POST   /auth/register
+POST   /auth/login
+GET    /auth/logout
+GET    /auth
+GET    /auth/ID
+PATCH  /auth/ID
+DELETE /auth/ID
+
+CATEGORIES
+POST   /categories
+GET    /categories
+GET    /categories/ID
+PATCH  /categories/ID
+DELETE /categories/ID
+POST   /categories/ID/unlock
+
+FAVORIS
+POST   /favs
+GET    /favs
+GET    /favs/ID
+PATCH  /favs/ID
+DELETE /favs/ID
