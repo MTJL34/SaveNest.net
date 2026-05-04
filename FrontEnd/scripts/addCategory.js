@@ -14,7 +14,7 @@ setFooter();
 
 // Etat principal de la page catégories : mode courant, sélection et chargement.
 // On garde ces variables en haut pour comprendre rapidement ce qui peut changer.
-const categories = [];
+let categories = [];
 let currentMode = "view";
 let editingCategoryId = null;
 let selectedCategoryIds = new Set();

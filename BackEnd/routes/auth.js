@@ -55,7 +55,12 @@ router.patch(
   updateUser
 );
 
-// Supprimer un utilisateur : action sensible, reservee aux admins.
-router.delete("/:id", requireAuth, requireRole(ROLE_CODES.ADMIN), deleteUser);
+// Supprimer un utilisateur : lui-meme ou un admin.
+router.delete(
+  "/:id",
+  requireAuth,
+  requireSelfOrRole(getRouteUserId, ROLE_CODES.ADMIN),
+  deleteUser
+);
 
 export default router;

@@ -2,13 +2,15 @@
 import express from "express";
 import {
   getAllCategories,
+  getAdminCategories,
+  getAdminCategoriesByUserId,
   createCategory,
   getCategoryById,
   updateCategory,
   deleteCategory,
   unlockCategory,
 } from "../controllers/categoriesControllers.js";
-import { requireAuth } from "../middlewares/auth.js";
+import { requireAuth, requireRole, ROLE_CODES } from "../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -17,6 +19,20 @@ router.use(requireAuth);
 
 // GET /api/categories : liste les categories visibles pour l'utilisateur connecte.
 router.get("/", getAllCategories);
+
+// GET /api/categories/admin/all : vue dediee a l'administration.
+router.get(
+  "/admin/all",
+  requireRole(ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR),
+  getAdminCategories
+);
+
+// GET /api/categories/admin/user/:userId : categories d'un utilisateur cible.
+router.get(
+  "/admin/user/:userId",
+  requireRole(ROLE_CODES.ADMIN, ROLE_CODES.MODERATOR),
+  getAdminCategoriesByUserId
+);
 
 // GET /api/categories/:id : lit une seule categorie.
 router.get("/:id", getCategoryById);

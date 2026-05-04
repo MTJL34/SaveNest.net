@@ -15,6 +15,8 @@ const AUTH_REQUIRED_REASON = "auth-required";
 const AUTH_TOKEN_STORAGE_KEY = "savenest_auth_token";
 const AUTH_USER_STORAGE_KEY = "savenest_auth_user";
 const CATEGORY_ORDER_STORAGE_KEY = "savenest_category_order";
+const EGG_BUTTON_ICON_SRC = "../img/egg-fullwhite.png";
+const PROTECT_BUTTON_ICON_SRC = "../img/logo1eggwhite.png";
 
 // La page d'accueil est privee : si le token manque ou est expire, on sort tout de suite.
 if (!hasUsableAuthToken()) {
@@ -34,6 +36,7 @@ let categories = [];
 let favs = [];
 let unlockedCategoryIds = [];
 let unlockErrorsByCategoryId = {};
+let selectedCategoryId = "";
 
 const bannerHtml = `
   <p>Vos contenus préférés, bien au chaud dans leur nid.</p>
@@ -307,6 +310,13 @@ async function loadHomeData() {
       favs = [];
     }
 
+    if (
+      selectedCategoryId &&
+      !categories.some((item) => String(item.id_category) === String(selectedCategoryId))
+    ) {
+      selectedCategoryId = "";
+    }
+
     renderHomeCards();
   } catch (error) {
     console.error("Erreur lors du chargement de la page d'accueil :", error);
@@ -414,6 +424,18 @@ function getFavItemMarkup(fav) {
   `;
 }
 
+function getButtonMarkup(label, iconSrc = EGG_BUTTON_ICON_SRC) {
+  return `
+    <img
+      src="${iconSrc}"
+      alt=""
+      aria-hidden="true"
+      class="hatch-btn-icon"
+    >
+    <span>${label}</span>
+  `;
+}
+
 function getFavsOfCategory(categoryId) {
   // Filtre manuel pour garder une lecture facile.
   const categoryFavs = [];
@@ -445,6 +467,19 @@ function removeUnlockError(categoryId) {
   unlockErrorsByCategoryId = nextErrors;
 }
 
+function scrollToSelectedCategoryView() {
+  const selectedViewEl = document.querySelector(".js_selectedCategoryView");
+
+  if (!selectedViewEl) {
+    return;
+  }
+
+  selectedViewEl.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}
+
 function renderHomeCards() {
   // Ici, on reconstruit toutes les cartes HTML a partir des categories chargees.
   if (categories.length === 0) {
@@ -452,7 +487,11 @@ function renderHomeCards() {
     return;
   }
 
-  let html = "";
+  const selectedCategory = selectedCategoryId
+    ? findCategoryById(selectedCategoryId)
+    : null;
+
+  let categoriesHtml = "";
 
   for (let index = 0; index < categories.length; index += 1) {
     const currentCategory = categories[index];
@@ -461,62 +500,140 @@ function renderHomeCards() {
     const isPrivate = privacy === "Private";
     const unlocked = !isPrivate || isCategoryUnlocked(categoryId);
     const lockLabel = isPrivate ? (unlocked ? "🔓" : "🔒") : "";
-    const favsOfCategory = getFavsOfCategory(categoryId);
-    let cardBody = "";
+    const isSelected =
+      selectedCategory && categoryId === String(selectedCategory.id_category);
+    const toggleButtonLabel = isSelected
+      ? "Protéger le nid"
+      : "Faire éclore l'œuf";
+    const unlockError = isPrivate ? unlockErrorsByCategoryId[categoryId] || "" : "";
+    const statusText = isPrivate && !unlocked ? unlockError : "";
+    const statusRole = statusText ? ' role="alert"' : "";
+    const statusClassName = `category-card-status${
+      statusText ? " category-card-status--error" : ""
+    }`;
+    const cardBody = `
+      <div class="category-card-preview">
+        <p class="category-card-preview-text">Ouvrir les favoris</p>
+        <p class="${statusClassName}"${statusRole}>${statusText || "&nbsp;"}</p>
+        <button type="button" class="hatch-btn" data-open-category="${categoryId}">
+          ${getButtonMarkup(
+            toggleButtonLabel,
+            isSelected ? PROTECT_BUTTON_ICON_SRC : EGG_BUTTON_ICON_SRC
+          )}
+        </button>
+      </div>
+    `;
 
-    if (isPrivate && !unlocked) {
-      const unlockError = unlockErrorsByCategoryId[categoryId] || "";
+    const titleLockMarkup = `
+      <span
+        class="title-lock${isPrivate ? "" : " title-lock--placeholder"}"
+        aria-label="${isPrivate ? "État de protection" : ""}"
+        aria-hidden="${isPrivate ? "false" : "true"}"
+      >${isPrivate ? lockLabel : "•"}</span>
+    `;
 
-      cardBody = `
-        <div class="private-locked">
-          <p>Contenu protégé par mot de passe</p>
-          ${unlockError ? `<p class="unlock-error" role="alert">${unlockError}</p>` : ""}
-          <button type="button" class="hatch-btn" data-unlock-category="${categoryId}">
-            🥚 Faire éclore l'œuf
-          </button>
-        </div>
-      `;
-    } else {
-      let favsHtml = "";
-
-      if (favsOfCategory.length === 0) {
-        favsHtml = `<li class="empty-item">Aucun favori pour cette catégorie.</li>`;
-      } else {
-        for (let favIndex = 0; favIndex < favsOfCategory.length; favIndex += 1) {
-          favsHtml += getFavItemMarkup(favsOfCategory[favIndex]);
-        }
-      }
-
-      let privateActions = "";
-
-      if (isPrivate) {
-        privateActions = `
-          <div class="private-actions">
-            <button type="button" class="protect-btn" data-lock-category="${categoryId}">
-              🪺 Protéger le nid
-            </button>
-          </div>
-        `;
-      }
-
-      cardBody = `
-        <ul>${favsHtml}</ul>
-        ${privateActions}
-      `;
-    }
-
-    html += `
-      <div class="card ${isPrivate ? "private-card" : "public-card"}">
+    categoriesHtml += `
+      <div
+        class="card home-category-card ${isPrivate ? "private-card" : "public-card"}${isSelected ? " is-selected" : ""}"
+      >
         <h3>
           <span>${currentCategory.category_name}</span>
-          ${isPrivate ? `<span class="title-lock" aria-label="État de protection">${lockLabel}</span>` : ""}
+          ${titleLockMarkup}
         </h3>
         ${cardBody}
       </div>
     `;
   }
 
-  cardsContainerEl.innerHTML = html;
+  let selectedBody = "";
+  if (selectedCategory) {
+    const selectedCategoryIdSafe = String(selectedCategory.id_category);
+    const selectedPrivacy = getCategoryPrivacy(selectedCategory);
+    const selectedIsPrivate = selectedPrivacy === "Private";
+    const selectedUnlocked =
+      !selectedIsPrivate || isCategoryUnlocked(selectedCategoryIdSafe);
+    const selectedLockLabel = selectedIsPrivate
+      ? selectedUnlocked
+        ? "🔓"
+        : "🔒"
+      : "";
+    const selectedFavs = getFavsOfCategory(selectedCategoryIdSafe);
+
+    if (selectedIsPrivate && !selectedUnlocked) {
+      const unlockError = unlockErrorsByCategoryId[selectedCategoryIdSafe] || "";
+
+      selectedBody = `
+        <div class="private-locked">
+          <p>Contenu protégé par mot de passe</p>
+          ${unlockError ? `<p class="unlock-error" role="alert">${unlockError}</p>` : ""}
+          <button type="button" class="hatch-btn" data-open-category="${selectedCategoryIdSafe}">
+            ${getButtonMarkup("Faire éclore l'œuf")}
+          </button>
+        </div>
+      `;
+    } else {
+      let favsHtml = "";
+
+      if (selectedFavs.length === 0) {
+        favsHtml = `<li class="empty-item">Aucun favori pour cette catégorie.</li>`;
+      } else {
+        for (let favIndex = 0; favIndex < selectedFavs.length; favIndex += 1) {
+          favsHtml += getFavItemMarkup(selectedFavs[favIndex]);
+        }
+      }
+
+      let privateActions = "";
+
+      if (selectedIsPrivate) {
+        privateActions = `
+          <div class="private-actions">
+            <button type="button" class="protect-btn" data-lock-category="${selectedCategoryIdSafe}">
+              ${getButtonMarkup("Protéger le nid", PROTECT_BUTTON_ICON_SRC)}
+            </button>
+          </div>
+        `;
+      }
+
+      const selectedTitleLockMarkup = `
+        <span
+          class="title-lock${selectedIsPrivate ? "" : " title-lock--placeholder"}"
+          aria-label="${selectedIsPrivate ? "État de protection" : ""}"
+          aria-hidden="${selectedIsPrivate ? "false" : "true"}"
+        >${selectedIsPrivate ? selectedLockLabel : "•"}</span>
+      `;
+
+      selectedBody = `
+        <div class="card ${selectedIsPrivate ? "private-card" : "public-card"}">
+          <h3>
+            <span>${selectedCategory.category_name}</span>
+            ${selectedTitleLockMarkup}
+          </h3>
+          <ul>${favsHtml}</ul>
+          ${privateActions}
+        </div>
+      `;
+    }
+  } else {
+    selectedBody = `
+      <div class="category-card-preview category-card-preview--empty">
+        <p>Choisissez une catégorie puis cliquez sur "Faire éclore l'œuf" pour afficher ses favoris.</p>
+      </div>
+    `;
+  }
+
+  cardsContainerEl.innerHTML = `
+    <section class="home-workspace">
+      <section class="home-categories-grid">
+        ${categoriesHtml}
+      </section>
+      <section class="selected-category-view js_selectedCategoryView">
+        <h3 class="selected-category-title">
+          ${selectedCategory ? `Favoris de ${selectedCategory.category_name}` : "Favoris de la catégorie"}
+        </h3>
+        ${selectedBody}
+      </section>
+    </section>
+  `;
 }
 
 function findCategoryById(categoryId) {
@@ -613,36 +730,50 @@ function askCategoryPassword(categoryName) {
 
 cardsContainerEl.addEventListener("click", async function handleCardsClick(event) {
   // Un seul ecouteur suffit pour gerer tous les boutons ajoutes dynamiquement.
-  const unlockBtn = event.target.closest("[data-unlock-category]");
+  const openCategoryBtn = event.target.closest("[data-open-category]");
 
-  if (unlockBtn) {
-    const categoryId = String(unlockBtn.dataset.unlockCategory);
-    const selectedCategory = findCategoryById(categoryId);
+  if (openCategoryBtn) {
+    const categoryId = String(openCategoryBtn.dataset.openCategory || "");
+    const category = findCategoryById(categoryId);
 
-    if (!selectedCategory) {
+    if (!category) {
       return;
     }
 
-    const userInput = await askCategoryPassword(selectedCategory.category_name);
-
-    if (userInput === null) {
+    if (selectedCategoryId === categoryId) {
+      selectedCategoryId = "";
+      renderHomeCards();
       return;
     }
 
-    try {
-      await requestCategoryUnlock(categoryId, userInput);
-      removeUnlockError(categoryId);
+    const privacy = getCategoryPrivacy(category);
+    const isPrivate = privacy === "Private";
+    const isUnlocked = !isPrivate || isCategoryUnlocked(categoryId);
 
-      if (!unlockedCategoryIds.includes(categoryId)) {
-        unlockedCategoryIds.push(categoryId);
+    if (isPrivate && !isUnlocked) {
+      const userInput = await askCategoryPassword(category.category_name);
+
+      if (userInput === null) {
+        return;
       }
 
-      renderHomeCards();
-    } catch (error) {
-      unlockErrorsByCategoryId[categoryId] = getUnlockErrorMessage(error);
-      renderHomeCards();
+      try {
+        await requestCategoryUnlock(categoryId, userInput);
+        removeUnlockError(categoryId);
+
+        if (!unlockedCategoryIds.includes(categoryId)) {
+          unlockedCategoryIds.push(categoryId);
+        }
+      } catch (error) {
+        unlockErrorsByCategoryId[categoryId] = getUnlockErrorMessage(error);
+        renderHomeCards();
+        return;
+      }
     }
 
+    selectedCategoryId = categoryId;
+    renderHomeCards();
+    scrollToSelectedCategoryView();
     return;
   }
 
@@ -663,6 +794,7 @@ cardsContainerEl.addEventListener("click", async function handleCardsClick(event
 
   unlockedCategoryIds = nextUnlockedCategoryIds;
   renderHomeCards();
+  scrollToSelectedCategoryView();
 });
 
 loadHomeData();

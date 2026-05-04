@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!-- Vue reservee a l'administration pour consulter toutes les categories. -->
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../css/admin-categories.css">
+  <title>Administration | Catégories | SaveNest</title>
+  <link rel="icon" type="image/png" href="../img/logoeggwhite.png" />
+</head>
+<body>
+  <header class="header js_header"></header>
+
+  <main class="admin-page">
+    <section class="admin-hero">
+      <p class="admin-eyebrow">Administration</p>
+      <h1>Catégories par utilisateur</h1>
+      <p class="admin-intro">
+        Cliquez sur un pseudo pour afficher uniquement les catégories de cet utilisateur.
+      </p>
+    </section>
+
+    <section class="admin-panel">
+      <div class="admin-panel__head">
+        <h2>Explorateur admin</h2>
+        <p class="js_adminCount">Chargement…</p>
+      </div>
+      <p class="admin-feedback js_adminFeedback" aria-live="polite"></p>
+      <div class="admin-layout">
+        <aside class="admin-users">
+          <h3>Utilisateurs</h3>
+          <div class="admin-users-list js_adminUsersList">
+            <p class="admin-empty">Chargement des utilisateurs…</p>
+          </div>
+        </aside>
+
+        <section class="admin-categories">
+          <div class="admin-categories-head">
+            <div>
+              <h3 class="js_adminSelectedTitle">Sélectionnez un utilisateur</h3>
+              <p class="js_adminSelectedMeta">Les catégories apparaîtront ici.</p>
+            </div>
+          </div>
+
+          <section class="admin-user-card">
+            <h4>Fiche utilisateur</h4>
+            <p class="admin-user-card__hint">
+              Infos utiles pour vérifier l’identité d’un compte avant une récupération.
+            </p>
+            <dl class="admin-user-details">
+              <div>
+                <dt>Pseudo</dt>
+                <dd class="js_adminDetailPseudo">-</dd>
+              </div>
+              <div>
+                <dt>E-mail</dt>
+                <dd class="js_adminDetailMail">-</dd>
+              </div>
+              <div>
+                <dt>Date de création</dt>
+                <dd class="js_adminDetailDate">-</dd>
+              </div>
+              <div>
+                <dt>Catégorie par défaut</dt>
+                <dd class="js_adminDetailDefaultCategory">-</dd>
+              </div>
+              <div>
+                <dt>Langues parlées</dt>
+                <dd class="js_adminDetailLanguages">-</dd>
+              </div>
+              <div>
+                <dt>Rôle</dt>
+                <dd class="js_adminDetailRole">-</dd>
+              </div>
+            </dl>
+          </section>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Visibilité</th>
+                </tr>
+              </thead>
+              <tbody class="js_adminTableBody">
+                <tr>
+                  <td colspan="2">Sélectionnez un pseudo pour voir ses catégories.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer js_footer"></footer>
+
+  <script type="module" src="../scripts/admin-categories.js"></script>
+</body>
+</html>

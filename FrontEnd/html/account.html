@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<!-- Page de gestion du compte utilisateur. -->
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../css/account.css">
+  <title>Mon compte | SaveNest</title>
+  <link rel="icon" type="image/png" href="../img/logoeggwhite.png" />
+</head>
+<body>
+  <header class="header js_header"></header>
+
+  <main class="account-page">
+    <section class="account-hero">
+      <div>
+        <p class="account-eyebrow">Gestion utilisateur</p>
+        <h1>Mon compte SaveNest</h1>
+        <p class="account-intro">
+          Retrouvez vos informations, mettez votre profil à jour et gardez le contrôle sur votre espace.
+        </p>
+      </div>
+      <div class="account-badge">
+        <span class="account-badge-label">Session</span>
+        <strong class="js_accountRole">Utilisateur</strong>
+      </div>
+    </section>
+
+    <section class="account-grid">
+      <article class="account-card account-card--summary">
+        <div class="account-card-head">
+          <div>
+            <p class="account-card-eyebrow">Profil</p>
+            <h2>Vue d’ensemble</h2>
+          </div>
+        </div>
+
+        <dl class="account-summary">
+          <div>
+            <dt>Pseudo</dt>
+            <dd class="js_summaryPseudo">-</dd>
+          </div>
+          <div>
+            <dt>E-mail</dt>
+            <dd class="js_summaryMail">-</dd>
+          </div>
+          <div>
+            <dt>Rôle</dt>
+            <dd class="js_summaryRole">-</dd>
+          </div>
+          <div>
+            <dt>Inscription</dt>
+            <dd class="js_summaryDate">-</dd>
+          </div>
+          <div>
+            <dt>Catégorie par défaut</dt>
+            <dd class="js_summaryDefaultCategory">Aucune</dd>
+          </div>
+          <div>
+            <dt>Langues parlées</dt>
+            <dd class="js_summaryLanguages">-</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="account-card">
+        <div class="account-card-head">
+          <div>
+            <p class="account-card-eyebrow">Modification</p>
+            <h2>Mettre à jour mes informations</h2>
+          </div>
+        </div>
+
+        <form class="account-form js_accountForm">
+          <label for="accountPseudo">Pseudo</label>
+          <input id="accountPseudo" name="pseudo" type="text" placeholder="Votre pseudo" required>
+
+          <label for="accountMail">E-mail</label>
+          <input id="accountMail" name="mail" type="email" placeholder="Votre e-mail" required>
+
+          <label for="accountCurrentPassword">Mot de passe actuel</label>
+          <input
+            id="accountCurrentPassword"
+            name="current_password"
+            type="password"
+            placeholder="Obligatoire si vous changez le mot de passe"
+          >
+
+          <label for="accountPassword">Nouveau mot de passe</label>
+          <input id="accountPassword" name="password" type="password" placeholder="Laisser vide pour ne pas changer">
+
+          <fieldset class="account-languages">
+            <legend>Langues parlées</legend>
+            <p class="account-hint">Sélectionnez au moins une langue.</p>
+
+            <div class="language-list">
+              <label class="language-pill" for="accountLanguageFrench">
+                <input id="accountLanguageFrench" type="checkbox" name="spoken_languages" value="French">
+                <span>Français</span>
+              </label>
+              <label class="language-pill" for="accountLanguageEnglish">
+                <input id="accountLanguageEnglish" type="checkbox" name="spoken_languages" value="English">
+                <span>Anglais</span>
+              </label>
+              <label class="language-pill" for="accountLanguageSpanish">
+                <input id="accountLanguageSpanish" type="checkbox" name="spoken_languages" value="Spanish">
+                <span>Espagnol</span>
+              </label>
+              <label class="language-pill" for="accountLanguageGerman">
+                <input id="accountLanguageGerman" type="checkbox" name="spoken_languages" value="German">
+                <span>Allemand</span>
+              </label>
+              <label class="language-pill" for="accountLanguageJapanese">
+                <input id="accountLanguageJapanese" type="checkbox" name="spoken_languages" value="Japanese">
+                <span>Japonais</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <p class="account-feedback js_accountFeedback" aria-live="polite"></p>
+
+          <div class="account-actions">
+            <button type="submit" class="account-primary-btn">Enregistrer les modifications</button>
+          </div>
+        </form>
+      </article>
+    </section>
+
+    <section class="account-card account-card--danger">
+      <div class="account-admin-panel js_accountAdminPanel" hidden>
+        <div class="account-card-head">
+          <div>
+            <p class="account-card-eyebrow">Accès privilégié</p>
+            <h2>Administration</h2>
+          </div>
+        </div>
+
+        <p class="danger-text">
+          Cet espace vous permet d’ouvrir la vue d’administration des catégories par utilisateur.
+        </p>
+
+        <div class="account-actions">
+          <a href="../html/admin-categories.html" class="account-admin-btn js_accountAdminLink">
+            Ouvrir l’administration
+          </a>
+        </div>
+      </div>
+
+      <div class="account-card-head">
+        <div>
+          <p class="account-card-eyebrow">Zone sensible</p>
+          <h2>Supprimer mon compte</h2>
+        </div>
+      </div>
+
+      <p class="danger-text">
+        Cette action supprime votre compte, vos catégories, vos favoris et vos préférences associées.
+      </p>
+
+      <form class="danger-form js_deleteForm">
+        <label for="deleteConfirmText">Tapez <strong>SUPPRIMER</strong> pour confirmer</label>
+        <input id="deleteConfirmText" name="delete_confirm" type="text" autocomplete="off" placeholder="SUPPRIMER">
+        <p class="account-feedback js_deleteFeedback" aria-live="polite"></p>
+        <button type="submit" class="account-danger-btn">Supprimer définitivement</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer js_footer"></footer>
+
+  <script type="module" src="../scripts/account.js"></script>
+</body>
+</html>

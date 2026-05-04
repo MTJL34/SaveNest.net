@@ -83,19 +83,12 @@ async function userExists(idUser) {
 
 export async function getAllCategories(req, res) {
   try {
-    // Par defaut, un utilisateur ne voit que ses propres categories.
-    let query =
-      "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_user = ? ORDER BY id_category ASC";
-    let values = [req.authUser.id_user];
-
-    if (isPrivilegedUser(req.authUser)) {
-      // Admin/moderateur : ils peuvent voir toutes les categories.
-      query =
-        "SELECT id_category, category_name, confidentiality, id_user FROM category ORDER BY id_category ASC";
-      values = [];
-    }
-
-    const [rows] = await connection.execute(query, values);
+    // La page categories standard doit toujours montrer uniquement
+    // les categories du compte connecte, meme pour un administrateur.
+    const [rows] = await connection.execute(
+      "SELECT id_category, category_name, confidentiality, id_user FROM category WHERE id_user = ? ORDER BY id_category ASC",
+      [req.authUser.id_user]
+    );
     const publicCategories = [];
 
     // Boucle volontairement explicite pour un lecteur debutant.
@@ -106,6 +99,71 @@ export async function getAllCategories(req, res) {
     return res.status(200).json(publicCategories);
   } catch (error) {
     console.error("Error in getAllCategories:", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+}
+
+export async function getAdminCategories(req, res) {
+  try {
+    // Vue dediee a l'administration : liste complete avec proprietaire.
+    const [rows] = await connection.execute(
+      `SELECT
+        c.id_category,
+        c.category_name,
+        c.confidentiality,
+        c.id_user,
+        u.pseudo AS owner_pseudo,
+        u.mail AS owner_mail
+      FROM category c
+      INNER JOIN user_ u ON u.id_user = c.id_user
+      ORDER BY c.id_category ASC`
+    );
+
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error in getAdminCategories:", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+}
+
+export async function getAdminCategoriesByUserId(req, res) {
+  try {
+    const idUser = parsePositiveId(req.params.userId);
+
+    if (!idUser) {
+      return res.status(400).json({ message: "ID utilisateur invalide." });
+    }
+
+    const [userRows] = await connection.execute(
+      "SELECT id_user, pseudo, mail FROM user_ WHERE id_user = ? LIMIT 1",
+      [idUser]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ message: "Utilisateur introuvable." });
+    }
+
+    const [rows] = await connection.execute(
+      `SELECT
+        c.id_category,
+        c.category_name,
+        c.confidentiality,
+        c.id_user,
+        u.pseudo AS owner_pseudo,
+        u.mail AS owner_mail
+      FROM category c
+      INNER JOIN user_ u ON u.id_user = c.id_user
+      WHERE c.id_user = ?
+      ORDER BY c.id_category ASC`,
+      [idUser]
+    );
+
+    return res.status(200).json({
+      user: userRows[0],
+      categories: rows,
+    });
+  } catch (error) {
+    console.error("Error in getAdminCategoriesByUserId:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 }

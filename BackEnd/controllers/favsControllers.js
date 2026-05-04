@@ -29,6 +29,10 @@ function canAccessUserOwnedResource(req, ownerId) {
   return req.authUser.id_user === ownerId;
 }
 
+function isDuplicateFavoriteUrlError(error) {
+  return error && error.code === "ER_DUP_ENTRY" && String(error.message || "").includes("uk_url_favs");
+}
+
 // Morceau de SQL reutilise dans plusieurs fonctions.
 // On joint favs et category pour connaitre le proprietaire de chaque favori.
 const favSelectQuery = `
@@ -188,6 +192,10 @@ export async function createFav(req, res) {
       fav: newFav,
     });
   } catch (error) {
+    if (isDuplicateFavoriteUrlError(error)) {
+      return res.status(409).json({ message: "Ce lien est déjà enregistré dans vos favoris." });
+    }
+
     console.error("Error in createFav:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
@@ -264,6 +272,10 @@ export async function updateFav(req, res) {
       fav: updatedFav,
     });
   } catch (error) {
+    if (isDuplicateFavoriteUrlError(error)) {
+      return res.status(409).json({ message: "Ce lien est déjà enregistré dans vos favoris." });
+    }
+
     console.error("Error in updateFav:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }

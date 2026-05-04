@@ -28,6 +28,8 @@ const LANGUAGE_CONFIG = {
       home: "Accueil",
       favorites: "Favoris",
       categories: "Catégories",
+      account: "Mon compte",
+      admin: "Administration",
       about: "À propos",
       login: "Connexion",
       logout: "Déconnexion",
@@ -42,6 +44,8 @@ const LANGUAGE_CONFIG = {
       home: "Home",
       favorites: "Favorites",
       categories: "Categories",
+      account: "My account",
+      admin: "Admin",
       about: "About",
       login: "Login",
       logout: "Logout",
@@ -56,6 +60,8 @@ const LANGUAGE_CONFIG = {
       home: "Inicio",
       favorites: "Favoritos",
       categories: "Categorías",
+      account: "Mi cuenta",
+      admin: "Administración",
       about: "Acerca de",
       login: "Conexión",
       logout: "Desconexión",
@@ -70,6 +76,8 @@ const LANGUAGE_CONFIG = {
       home: "Startseite",
       favorites: "Favoriten",
       categories: "Kategorien",
+      account: "Mein Konto",
+      admin: "Verwaltung",
       about: "Über uns",
       login: "Anmeldung",
       logout: "Abmelden",
@@ -84,6 +92,8 @@ const LANGUAGE_CONFIG = {
       home: "ホーム",
       favorites: "お気に入り",
       categories: "カテゴリ",
+      account: "マイアカウント",
+      admin: "管理",
       about: "概要",
       login: "ログイン",
       logout: "ログアウト",
@@ -94,7 +104,7 @@ const LANGUAGE_CONFIG = {
 
 export const footerMarkup = `
   <a href="../html/index.html" class="footer-logo" aria-label="Retour à l'accueil">
-    <img src="../img/logo.png" alt="SaveNest logo">
+    <img src="../img/logoeggwhite.png" alt="SaveNest logo">
     <span>SaveNest</span>
   </a>
   <div class="footer-links">
@@ -339,10 +349,37 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
     selectedLanguages,
     activeLanguage
   );
+  const token =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || ""
+      : "";
+  const isAuthenticated = token !== "";
+  let storedUser = null;
+
+  try {
+    const rawStoredUser =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem(AUTH_USER_STORAGE_KEY)
+        : "";
+    storedUser = rawStoredUser ? JSON.parse(rawStoredUser) : null;
+  } catch (error) {
+    storedUser = null;
+  }
+
+  const authNavMarkup = isAuthenticated
+    ? `
+        <li><a href="../html/account.html">${currentLanguage.header.account}</a></li>
+        <li>
+          <button type="button" class="header-logout-btn js_logoutBtn">
+            ${currentLanguage.header.logout}
+          </button>
+        </li>
+      `
+    : `<li><a href="../html/connexion.html#login">${currentLanguage.header.login}</a></li>`;
 
   return `
     <a href="../html/index.html" class="logo" aria-label="Retour à l'accueil">
-      <img src="../img/logo.png" alt="SaveNest logo">
+      <img src="../img/logoeggwhite.png" alt="SaveNest logo">
       <span>SaveNest</span>
     </a>
     <nav class="header-nav">
@@ -367,11 +404,7 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
         <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
         <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
         <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
-        <li>
-          <button type="button" class="header-logout-btn js_logoutBtn">
-            ${currentLanguage.header.logout}
-          </button>
-        </li>
+        ${authNavMarkup}
       </ul>
     </nav>
   `;

@@ -410,6 +410,28 @@ const insertSpokenLanguages = async ({
   return null;
 };
 
+const replaceSpokenLanguages = async ({
+  idUser,
+  spokenLanguages,
+  executor = connection,
+}) => {
+  // Pour une mise a jour, on remplace completement la liste des langues si elle
+  // est fournie. Cela garde un comportement simple et previsible cote front.
+  const normalizedLanguages = normalizeSpokenLanguages(spokenLanguages);
+
+  if (normalizedLanguages.length === 0) {
+    return { status: 400, message: "Choisissez au moins une langue parlée." };
+  }
+
+  await executor.execute("DELETE FROM speaking WHERE id_user = ?", [idUser]);
+
+  return insertSpokenLanguages({
+    idUser,
+    spokenLanguages: normalizedLanguages,
+    executor,
+  });
+};
+
 export const getAllUsers = async (req, res) => {
   try {
     // On recupere tous les utilisateurs, puis on les transforme
@@ -605,15 +627,25 @@ export const updateUser = async (req, res) => {
       req.body.mail === undefined ? existingUser.mail : normalizeMail(req.body.mail);
     const nextPasswordRaw =
       req.body.password === undefined ? null : String(req.body.password);
-    const nextSaveNest =
-      req.body.id_savenest === undefined
-        ? existingUser.id_savenest
-        : parsePositiveId(req.body.id_savenest);
+    const currentPasswordRaw =
+      req.body.current_password === undefined ? null : String(req.body.current_password);
+    const hasProvidedSaveNest = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "id_savenest"
+    );
+    const nextSaveNest = hasProvidedSaveNest
+      ? parsePositiveId(req.body.id_savenest)
+      : existingUser.id_savenest;
+    const hasProvidedRole = Object.prototype.hasOwnProperty.call(req.body, "id_role");
     const nextRole =
-      req.body.id_role === undefined ? existingUser.id_role : parsePositiveId(req.body.id_role);
+      hasProvidedRole ? parsePositiveId(req.body.id_role) : existingUser.id_role;
     const hasProvidedDefaultCategory = Object.prototype.hasOwnProperty.call(
       req.body,
       "default_category_id"
+    );
+    const hasProvidedSpokenLanguages = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "spoken_languages"
     );
     const parsedDefaultCategory = parseOptionalPositiveId(
       hasProvidedDefaultCategory
@@ -648,10 +680,35 @@ export const updateUser = async (req, res) => {
       });
     }
 
+    if (!isAdminUser(req.authUser) && hasProvidedSaveNest) {
+      return res.status(403).json({
+        message: "Seul un administrateur peut modifier l'espace SaveNest d'un utilisateur.",
+      });
+    }
+
     // Un mot de passe vide n'a pas de sens. En revanche, null signifie
     // "ne pas changer le mot de passe".
     if (nextPasswordRaw !== null && nextPasswordRaw.trim() === "") {
       return res.status(400).json({ message: "password ne peut pas être vide." });
+    }
+
+    if (nextPasswordRaw !== null && req.authUser && req.authUser.id_user === idUser) {
+      if (currentPasswordRaw === null || currentPasswordRaw.trim() === "") {
+        return res.status(400).json({
+          message: "Le mot de passe actuel est requis pour définir un nouveau mot de passe.",
+        });
+      }
+
+      const currentPasswordCheck = await verifyStoredPassword(
+        currentPasswordRaw,
+        existingUser.password
+      );
+
+      if (!currentPasswordCheck.isValid) {
+        return res.status(403).json({
+          message: "Le mot de passe actuel est incorrect.",
+        });
+      }
     }
 
     const foreignKeyError = await ensureForeignKeysExist({
@@ -692,11 +749,46 @@ export const updateUser = async (req, res) => {
     // Sinon, on garde simplement le hash deja stocke.
     const nextPassword =
       nextPasswordRaw === null ? existingUser.password : await bcrypt.hash(nextPasswordRaw, 10);
+    const db = await connection.getConnection();
 
-    await connection.execute(
-      "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_role = ?, default_category_id = ? WHERE id_user = ?",
-      [nextPseudo, nextMail, nextPassword, nextSaveNest, nextRole, nextDefaultCategory, idUser]
-    );
+    try {
+      await db.beginTransaction();
+
+      await db.execute(
+        "UPDATE user_ SET pseudo = ?, mail = ?, password = ?, id_savenest = ?, id_role = ?, default_category_id = ? WHERE id_user = ?",
+        [
+          nextPseudo,
+          nextMail,
+          nextPassword,
+          nextSaveNest,
+          nextRole,
+          nextDefaultCategory,
+          idUser,
+        ]
+      );
+
+      if (hasProvidedSpokenLanguages) {
+        const languagesError = await replaceSpokenLanguages({
+          idUser,
+          spokenLanguages: req.body.spoken_languages,
+          executor: db,
+        });
+
+        if (languagesError) {
+          await db.rollback();
+          return res.status(languagesError.status).json({
+            message: languagesError.message,
+          });
+        }
+      }
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    } finally {
+      db.release();
+    }
 
     const updatedUser = await getJoinedUserById(idUser);
     const publicUser = await buildPublicUser(updatedUser);
@@ -719,10 +811,79 @@ export const deleteUser = async (req, res) => {
       return res.status(400).json({ message: "ID utilisateur invalide." });
     }
 
-    const [result] = await connection.execute("DELETE FROM user_ WHERE id_user = ?", [idUser]);
+    const existingUser = await getRawUserById(idUser);
 
-    if (result.affectedRows === 0) {
+    if (!existingUser) {
       return res.status(404).json({ message: "Utilisateur introuvable." });
+    }
+
+    const db = await connection.getConnection();
+
+    try {
+      await db.beginTransaction();
+
+      // Si des categories de cet utilisateur sont definies comme categorie par
+      // defaut, on les retire avant suppression pour eviter une contrainte FK.
+      await db.execute(
+        `UPDATE user_
+        SET default_category_id = NULL
+        WHERE default_category_id IN (
+          SELECT id_category
+          FROM (
+            SELECT id_category
+            FROM category
+            WHERE id_user = ?
+          ) AS owned_categories
+        )`,
+        [idUser]
+      );
+
+      // On supprime d'abord les favoris relies aux categories de l'utilisateur.
+      await db.execute(
+        `DELETE FROM favs
+        WHERE id_category IN (
+          SELECT id_category
+          FROM (
+            SELECT id_category
+            FROM category
+            WHERE id_user = ?
+          ) AS owned_categories
+        )`,
+        [idUser]
+      );
+
+      await db.execute("DELETE FROM speaking WHERE id_user = ?", [idUser]);
+      await db.execute("DELETE FROM category WHERE id_user = ?", [idUser]);
+
+      const [deleteUserResult] = await db.execute(
+        "DELETE FROM user_ WHERE id_user = ?",
+        [idUser]
+      );
+
+      if (deleteUserResult.affectedRows === 0) {
+        await db.rollback();
+        return res.status(404).json({ message: "Utilisateur introuvable." });
+      }
+
+      // Si l'espace SaveNest n'est plus partage avec aucun autre utilisateur,
+      // on le nettoie aussi pour eviter les lignes orphelines.
+      const [remainingUsersRows] = await db.execute(
+        "SELECT id_user FROM user_ WHERE id_savenest = ? LIMIT 1",
+        [existingUser.id_savenest]
+      );
+
+      if (remainingUsersRows.length === 0) {
+        await db.execute("DELETE FROM savenest WHERE id_savenest = ?", [
+          existingUser.id_savenest,
+        ]);
+      }
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    } finally {
+      db.release();
     }
 
     return res.status(200).json({ message: "Utilisateur supprimé avec succès." });
