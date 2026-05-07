@@ -33,44 +33,6 @@ body.page {
     "footer";
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--sn-brand);
-  padding: 0.8rem 2rem;
-  color: var(--sn-surface);
-}
-
-.header .logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: bold;
-  font-size: 1.2rem;
-}
-
-.header .logo img {
-  width: 40px;
-  height: 40px;
-}
-
-.header ul {
-  display: flex;
-  list-style: none;
-  gap: 1.5rem;
-}
-
-.header a {
-  text-decoration: none;
-  color: var(--sn-surface);
-  font-weight: 500;
-}
-
-.header a:hover {
-  text-decoration: underline;
-}
-
 /* ====== MAIN ====== */
 .main {
   grid-area: main;
@@ -1070,45 +1032,6 @@ select:focus {
   font-style: italic;
 }
 
-/* ====== FOOTER ====== */
-footer {
-  background-color: var(--sn-brand);
-  color: var(--sn-surface);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  margin-top: 3rem;
-}
-
-.footer-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.footer-logo img {
-  width: 35px;
-  height: 35px;
-}
-
-footer .footer-links ul {
-  display: flex;
-  list-style: none;
-  gap: 1.5rem;
-}
-
-footer a {
-  text-decoration: none;
-  color: var(--sn-surface);
-}
-
-footer a:hover {
-  text-decoration: underline;
-}
-
 /* ====== RESPONSIVE DESIGN ====== */
 @media (max-width: 960px) {
   .layout {
@@ -1185,18 +1108,4 @@ footer a:hover {
     align-items: start;
   }
 
-  .footer {
-    grid-template-columns: 1fr;
-    text-align: center;
-  }
-
-  .navbar {
-    grid-template-columns: 1fr;
-    text-align: center;
-  }
-
-  .navbar ul {
-    grid-auto-flow: row;
-    justify-content: center;
-  }
 }

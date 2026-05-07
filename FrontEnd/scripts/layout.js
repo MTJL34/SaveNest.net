@@ -23,6 +23,7 @@ const LANGUAGE_CONFIG = {
   French: {
     code: "fr",
     label: "Français",
+    short_label: "FR",
     flag: "🇫🇷",
     header: {
       home: "Accueil",
@@ -39,6 +40,7 @@ const LANGUAGE_CONFIG = {
   English: {
     code: "en",
     label: "English",
+    short_label: "GB",
     flag: "🇬🇧",
     header: {
       home: "Home",
@@ -55,6 +57,7 @@ const LANGUAGE_CONFIG = {
   Spanish: {
     code: "es",
     label: "Español",
+    short_label: "ES",
     flag: "🇪🇸",
     header: {
       home: "Inicio",
@@ -71,6 +74,7 @@ const LANGUAGE_CONFIG = {
   German: {
     code: "de",
     label: "Deutsch",
+    short_label: "DE",
     flag: "🇩🇪",
     header: {
       home: "Startseite",
@@ -87,6 +91,7 @@ const LANGUAGE_CONFIG = {
   Japanese: {
     code: "ja",
     label: "日本語",
+    short_label: "JP",
     flag: "🇯🇵",
     header: {
       home: "ホーム",
@@ -335,7 +340,7 @@ function buildLanguageOptionsMarkup(selectedLanguages, activeLanguage) {
       selectedAttribute = " selected";
     }
 
-    html += `<option value="${languageName}"${selectedAttribute}>${language.flag} ${language.label}</option>`;
+    html += `<option value="${languageName}"${selectedAttribute}>${language.flag} ${language.short_label || language.label}</option>`;
   }
 
   return html;
@@ -378,34 +383,40 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
     : `<li><a href="../html/connexion.html#login">${currentLanguage.header.login}</a></li>`;
 
   return `
-    <a href="../html/index.html" class="logo" aria-label="Retour à l'accueil">
-      <img src="../img/logoeggwhite.png" alt="SaveNest logo">
-      <span>SaveNest</span>
-    </a>
-    <nav class="header-nav">
-      <div class="header-language">
-        <select
-          id="headerLanguageSwitcher"
-          class="header-language-select js_language_switcher"
-          aria-label="${currentLanguage.header.language}"
-        >
-          ${languageOptionsMarkup}
-        </select>
+    <div class="header-left">
+      <div class="header-brand">
+        <a href="../html/index.html" class="logo" aria-label="Retour à l'accueil">
+          <img src="../img/logoeggwhite.png" alt="SaveNest logo">
+          <span>SaveNest</span>
+        </a>
       </div>
-      <button
-        type="button"
-        class="header-egg-toggle js_headerEggToggle"
-        aria-label="Fermer l'œuf"
-        aria-pressed="true"
-      >
-        <img src="${HEADER_EGG_OPEN_SRC}" alt="" class="header-egg-img js_headerEggImg" aria-hidden="true">
-      </button>
-      <ul>
-        <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
-        <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
-        <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
-        ${authNavMarkup}
-      </ul>
+    </div>
+    <button
+      type="button"
+      class="header-egg-toggle js_headerEggToggle"
+      aria-label="Fermer l'œuf"
+      aria-pressed="true"
+    >
+      <img src="${HEADER_EGG_OPEN_SRC}" alt="" class="header-egg-img js_headerEggImg" aria-hidden="true">
+    </button>
+    <nav class="header-nav">
+      <div class="header-side header-side--right">
+        <ul>
+          <li class="header-language-item">
+            <select
+              id="headerLanguageSwitcher"
+              class="header-language-select js_language_switcher"
+              aria-label="${currentLanguage.header.language}"
+            >
+              ${languageOptionsMarkup}
+            </select>
+          </li>
+          <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
+          <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
+          <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
+          ${authNavMarkup}
+        </ul>
+      </div>
     </nav>
   `;
 }
