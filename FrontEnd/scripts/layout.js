@@ -346,10 +346,35 @@ function buildLanguageOptionsMarkup(selectedLanguages, activeLanguage) {
   return html;
 }
 
+function getCurrentHeaderPageKey() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const pathname = String(window.location.pathname || "").toLowerCase();
+  const currentFile = pathname.split("/").pop() || "index.html";
+
+  if (currentFile === "index.html") return "home";
+  if (currentFile === "fav.html") return "favorites";
+  if (currentFile === "category.html") return "categories";
+  if (currentFile === "account.html") return "account";
+
+  return "";
+}
+
+function buildHeaderLinkMarkup({ href, label, pageKey, currentPageKey }) {
+  const isCurrentPage = currentPageKey === pageKey;
+
+  return `<a href="${href}" class="${isCurrentPage ? "is-current-page" : ""}"${
+    isCurrentPage ? ' aria-current="page"' : ""
+  }>${label}</a>`;
+}
+
 function getHeaderMarkup(selectedLanguages, activeLanguage) {
   // Le header est genere en JS pour etre partage par toutes les pages.
   const currentLanguage =
     LANGUAGE_CONFIG[activeLanguage] || LANGUAGE_CONFIG.French;
+  const currentPageKey = getCurrentHeaderPageKey();
   const languageOptionsMarkup = buildLanguageOptionsMarkup(
     selectedLanguages,
     activeLanguage
@@ -373,7 +398,12 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
 
   const authNavMarkup = isAuthenticated
     ? `
-        <li><a href="../html/account.html">${currentLanguage.header.account}</a></li>
+        <li>${buildHeaderLinkMarkup({
+          href: "../html/account.html",
+          label: currentLanguage.header.account,
+          pageKey: "account",
+          currentPageKey,
+        })}</li>
         <li>
           <button type="button" class="header-logout-btn js_logoutBtn">
             ${currentLanguage.header.logout}
@@ -411,9 +441,24 @@ function getHeaderMarkup(selectedLanguages, activeLanguage) {
               ${languageOptionsMarkup}
             </select>
           </li>
-          <li><a href="../html/index.html">${currentLanguage.header.home}</a></li>
-          <li><a href="../html/fav.html">${currentLanguage.header.favorites}</a></li>
-          <li><a href="../html/category.html">${currentLanguage.header.categories}</a></li>
+          <li>${buildHeaderLinkMarkup({
+            href: "../html/index.html",
+            label: currentLanguage.header.home,
+            pageKey: "home",
+            currentPageKey,
+          })}</li>
+          <li>${buildHeaderLinkMarkup({
+            href: "../html/fav.html",
+            label: currentLanguage.header.favorites,
+            pageKey: "favorites",
+            currentPageKey,
+          })}</li>
+          <li>${buildHeaderLinkMarkup({
+            href: "../html/category.html",
+            label: currentLanguage.header.categories,
+            pageKey: "categories",
+            currentPageKey,
+          })}</li>
           ${authNavMarkup}
         </ul>
       </div>

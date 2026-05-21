@@ -2,6 +2,8 @@
 import connection from "../config/database.js";
 import { isPrivilegedUser } from "../middlewares/auth.js";
 
+const deletedCategorySnapshotsByUserId = new Map();
+
 // Les fonctions suivantes servent a reutiliser la meme logique dans plusieurs routes.
 function parsePositiveId(value) {
   // Les IDs arrivent souvent sous forme de texte depuis l'URL.
@@ -57,6 +59,20 @@ function toPublicCategory(row) {
   };
 }
 
+function normalizeDeleteStrategy(value) {
+  const normalizedValue = String(value || "").trim().toLowerCase();
+
+  if (normalizedValue === "delete_favorites") {
+    return "delete_favorites";
+  }
+
+  if (normalizedValue === "move_to_default") {
+    return "move_to_default";
+  }
+
+  return "";
+}
+
 async function getCategoryRowById(idCategory) {
   // Fonction interne : elle recupere aussi le mot de passe pour les verifications.
   const [rows] = await connection.execute(
@@ -71,6 +87,28 @@ async function getCategoryRowById(idCategory) {
   return rows[0];
 }
 
+async function getFavoriteRowsByCategoryId(idCategory, db = connection) {
+  const [rows] = await db.execute(
+    "SELECT id_favs, title_favs, url_favs, added_date, logo, id_category FROM favs WHERE id_category = ? ORDER BY id_favs ASC",
+    [idCategory]
+  );
+
+  return rows;
+}
+
+async function getUserDefaultCategoryId(idUser, db = connection) {
+  const [rows] = await db.execute(
+    "SELECT default_category_id FROM user_ WHERE id_user = ? LIMIT 1",
+    [idUser]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return parsePositiveId(rows[0].default_category_id);
+}
+
 async function userExists(idUser) {
   // Verification simple pour eviter de relier une categorie a un utilisateur inexistant.
   const [rows] = await connection.execute(
@@ -79,6 +117,41 @@ async function userExists(idUser) {
   );
 
   return rows.length > 0;
+}
+
+function rememberDeletedCategorySnapshot(snapshot) {
+  const ownerId = Number(snapshot?.category?.id_user || snapshot?.id_user);
+
+  if (!Number.isInteger(ownerId) || ownerId <= 0 || !snapshot) {
+    return;
+  }
+
+  const snapshots = deletedCategorySnapshotsByUserId.get(ownerId) || [];
+  snapshots.push(snapshot);
+  deletedCategorySnapshotsByUserId.set(ownerId, snapshots);
+}
+
+function extractDeletedCategorySnapshots(ownerId, requestedIds) {
+  const snapshots = deletedCategorySnapshotsByUserId.get(ownerId) || [];
+  const requestedIdSet = new Set(requestedIds.map((id) => Number(id)));
+  const matchedSnapshots = [];
+  const remainingSnapshots = [];
+
+  for (let index = 0; index < snapshots.length; index += 1) {
+    const snapshot = snapshots[index];
+    const snapshotId = Number(snapshot?.category?.id_category || snapshot?.id_category);
+
+    if (requestedIdSet.has(snapshotId)) {
+      matchedSnapshots.push(snapshot);
+      requestedIdSet.delete(snapshotId);
+      continue;
+    }
+
+    remainingSnapshots.push(snapshot);
+  }
+
+  deletedCategorySnapshotsByUserId.set(ownerId, remainingSnapshots);
+  return matchedSnapshots;
 }
 
 export async function getAllCategories(req, res) {
@@ -394,11 +467,209 @@ export async function deleteCategory(req, res) {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
-    await connection.execute("DELETE FROM category WHERE id_category = ?", [id]);
+    const favoriteRows = await getFavoriteRowsByCategoryId(id);
+    const deleteStrategy = normalizeDeleteStrategy(req.body?.delete_strategy);
+    const favoriteCount = favoriteRows.length;
+    const defaultCategoryId = await getUserDefaultCategoryId(category.id_user);
+    const canMoveToDefault =
+      favoriteCount > 0 &&
+      Number.isInteger(defaultCategoryId) &&
+      defaultCategoryId !== id;
+
+    if (favoriteCount > 0 && !deleteStrategy) {
+      return res.status(409).json({
+        message: "Cette catégorie contient encore des favoris.",
+        delete_options_required: true,
+        favorite_count: favoriteCount,
+        can_move_to_default: canMoveToDefault,
+        default_category_id: canMoveToDefault ? defaultCategoryId : null,
+      });
+    }
+
+    if (
+      favoriteCount > 0 &&
+      deleteStrategy === "move_to_default" &&
+      !canMoveToDefault
+    ) {
+      return res.status(409).json({
+        message:
+          "Impossible de reclasser les favoris : aucune catégorie par défaut valide n'est disponible.",
+        delete_options_required: true,
+        favorite_count: favoriteCount,
+        can_move_to_default: false,
+        default_category_id: null,
+      });
+    }
+
+    if (
+      favoriteCount > 0 &&
+      deleteStrategy &&
+      deleteStrategy !== "delete_favorites" &&
+      deleteStrategy !== "move_to_default"
+    ) {
+      return res.status(400).json({
+        message: "delete_strategy doit valoir delete_favorites ou move_to_default.",
+      });
+    }
+
+    const db = await connection.getConnection();
+
+    try {
+      await db.beginTransaction();
+
+      if (favoriteCount > 0 && deleteStrategy === "delete_favorites") {
+        await db.execute("DELETE FROM favs WHERE id_category = ?", [id]);
+      }
+
+      if (favoriteCount > 0 && deleteStrategy === "move_to_default") {
+        await db.execute(
+          "UPDATE favs SET id_category = ? WHERE id_category = ?",
+          [defaultCategoryId, id]
+        );
+      }
+
+      if (defaultCategoryId === id) {
+        await db.execute(
+          "UPDATE user_ SET default_category_id = NULL WHERE id_user = ?",
+          [category.id_user]
+        );
+      }
+
+      await db.execute("DELETE FROM category WHERE id_category = ?", [id]);
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    } finally {
+      db.release();
+    }
+
+    rememberDeletedCategorySnapshot({
+      category: { ...category },
+      favorites: favoriteRows.map((favorite) => ({ ...favorite })),
+      strategy: deleteStrategy || "category_only",
+      target_default_category_id:
+        favoriteCount > 0 && deleteStrategy === "move_to_default"
+          ? defaultCategoryId
+          : null,
+    });
 
     return res.status(200).json({ message: "Catégorie supprimée avec succès." });
   } catch (error) {
     console.error("Error in deleteCategory:", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+}
+
+export async function restoreDeletedCategories(req, res) {
+  try {
+    const requestedIds = Array.isArray(req.body?.category_ids)
+      ? req.body.category_ids
+          .map((value) => parsePositiveId(value))
+          .filter((value) => value !== null)
+      : [];
+
+    if (requestedIds.length === 0) {
+      return res.status(400).json({
+        message: "category_ids doit contenir au moins un identifiant valide.",
+      });
+    }
+
+    const ownerId = Number(req.authUser?.id_user);
+    const snapshotsToRestore = extractDeletedCategorySnapshots(ownerId, requestedIds);
+
+    if (snapshotsToRestore.length === 0) {
+      return res.status(404).json({
+        message: "Aucune catégorie supprimée récente ne peut être restaurée.",
+      });
+    }
+
+    const restoredCategories = [];
+
+    for (let index = 0; index < snapshotsToRestore.length; index += 1) {
+      const snapshot = snapshotsToRestore[index];
+      const categorySnapshot = snapshot.category || snapshot;
+      const existingCategory = await getCategoryRowById(categorySnapshot.id_category);
+
+      if (existingCategory) {
+        continue;
+      }
+
+      await connection.execute(
+        "INSERT INTO category (id_category, category_name, confidentiality, password, id_user) VALUES (?, ?, ?, ?, ?)",
+        [
+          categorySnapshot.id_category,
+          categorySnapshot.category_name,
+          categorySnapshot.confidentiality,
+          categorySnapshot.password,
+          categorySnapshot.id_user,
+        ]
+      );
+
+      if (snapshot.strategy === "move_to_default") {
+        const favoriteIds = Array.isArray(snapshot.favorites)
+          ? snapshot.favorites.map((favorite) => Number(favorite.id_favs))
+          : [];
+
+        if (favoriteIds.length > 0) {
+          await connection.execute(
+            `UPDATE favs
+             SET id_category = ?
+             WHERE id_category = ?
+             AND id_favs IN (${favoriteIds.map(() => "?").join(", ")})`,
+            [categorySnapshot.id_category, snapshot.target_default_category_id, ...favoriteIds]
+          );
+        }
+      }
+
+      if (snapshot.strategy === "delete_favorites" && Array.isArray(snapshot.favorites)) {
+        for (let favoriteIndex = 0; favoriteIndex < snapshot.favorites.length; favoriteIndex += 1) {
+          const favoriteSnapshot = snapshot.favorites[favoriteIndex];
+          const [existingFavoriteRows] = await connection.execute(
+            "SELECT id_favs FROM favs WHERE id_favs = ? LIMIT 1",
+            [favoriteSnapshot.id_favs]
+          );
+
+          if (existingFavoriteRows.length > 0) {
+            continue;
+          }
+
+          await connection.execute(
+            "INSERT INTO favs (id_favs, title_favs, url_favs, added_date, logo, id_category) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+              favoriteSnapshot.id_favs,
+              favoriteSnapshot.title_favs,
+              favoriteSnapshot.url_favs,
+              favoriteSnapshot.added_date,
+              favoriteSnapshot.logo,
+              categorySnapshot.id_category,
+            ]
+          );
+        }
+      }
+
+      const restoredCategory = await getCategoryRowById(categorySnapshot.id_category);
+
+      if (restoredCategory) {
+        restoredCategories.push(toPublicCategory(restoredCategory));
+      }
+    }
+
+    if (restoredCategories.length === 0) {
+      return res.status(409).json({
+        message: "Les catégories supprimées n'ont pas pu être restaurées.",
+      });
+    }
+
+    return res.status(200).json({
+      message:
+        restoredCategories.length > 1
+          ? "Catégories restaurées avec succès."
+          : "Catégorie restaurée avec succès.",
+      categories: restoredCategories,
+    });
+  } catch (error) {
+    console.error("Error in restoreDeletedCategories:", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 }

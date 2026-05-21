@@ -8,6 +8,7 @@ import {
   getCategoryById,
   updateCategory,
   deleteCategory,
+  restoreDeletedCategories,
   unlockCategory,
 } from "../controllers/categoriesControllers.js";
 import { requireAuth, requireRole, ROLE_CODES } from "../middlewares/auth.js";
@@ -42,6 +43,9 @@ router.post("/", createCategory);
 
 // POST /api/categories/:id/unlock : verifie le mot de passe d'une categorie privee.
 router.post("/:id/unlock", unlockCategory);
+
+// POST /api/categories/restore : restaure des categories supprimees recemment.
+router.post("/restore", restoreDeletedCategories);
 
 // PATCH /api/categories/:id : modifie le nom, la confidentialite ou le proprietaire.
 router.patch("/:id", updateCategory);

@@ -252,6 +252,12 @@ body.page {
   margin-top: 1rem;
 }
 
+.category-delete-strategy-actions {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
 .category-confirm-modal__cancel,
 .category-confirm-modal__submit {
   min-height: var(--sn-btn-height);
@@ -453,6 +459,25 @@ body.page {
   font-size: 0.88rem;
 }
 
+.category-card-mode-indicator {
+  margin-top: 0.7rem;
+  min-height: 3.25rem;
+  border: 1px dashed var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.category-card-mode-indicator.is-active {
+  border-color: var(--sn-accent-strong);
+  background: rgba(180, 134, 92, 0.16);
+  color: var(--brand);
+  font-weight: 700;
+}
+
 .default-category-summary {
   width: 100%;
   grid-column: 1 / -1;
@@ -478,6 +503,10 @@ body.page {
 }
 
 .category-actions .btn-primary {
+  width: 100%;
+}
+
+.category-actions .btn-secondary {
   width: 100%;
 }
 
@@ -532,6 +561,17 @@ body.page {
 .inline-edit h2 {
   color: var(--brand);
   font-size: var(--sn-title-md);
+}
+
+.inline-edit-intro {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.inline-edit .category-form {
+  margin-top: 0.9rem;
 }
 
 .inline-edit-layout {

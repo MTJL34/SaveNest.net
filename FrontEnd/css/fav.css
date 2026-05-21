@@ -306,6 +306,37 @@ body.page {
   font-size: 0.92rem;
 }
 
+.workspace-guide {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px dashed var(--sn-line);
+  border-radius: var(--sn-radius-lg);
+  padding: 0.95rem 1rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.workspace-guide.is-bulk {
+  border-color: var(--accent-600);
+  background: rgba(180, 134, 92, 0.12);
+}
+
+.workspace-guide.is-ready {
+  border-color: rgba(46, 122, 67, 0.28);
+  background: rgba(46, 122, 67, 0.08);
+}
+
+.workspace-guide-title {
+  color: var(--brand-700);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.workspace-guide-text {
+  color: var(--sn-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .favorite-form {
   margin-top: 0.2rem;
   grid-template-columns: 1fr;
@@ -343,6 +374,34 @@ body.page {
 .edit-board-header {
   display: grid;
   gap: 0.35rem;
+}
+
+.edit-selection-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem 1rem;
+  width: 100%;
+  margin-left: 0;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid rgba(180, 134, 92, 0.28);
+  border-radius: var(--sn-radius-lg);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.edit-selection-picker.is-disabled {
+  opacity: 0.65;
+}
+
+.edit-selection-picker .field {
+  grid-column: 1 / -1;
+}
+
+.edit-form-details {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1rem 1.2rem;
 }
 
 .edit-category-shortcuts {
@@ -654,17 +713,39 @@ body.page {
   font-size: 0.9rem;
 }
 
+.edit-locked-action {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-pill);
+  padding: 0.62rem 0.9rem;
+  background: var(--sn-surface);
+  color: var(--brand-700);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.edit-locked-action:hover {
+  border-color: var(--accent-600);
+  background: white;
+}
+
 .edit-selection-summary {
   grid-column: 1 / -1;
+}
+
+.edit-form-mode-title {
+  grid-column: 1 / -1;
+  color: var(--brand-700);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .edit-favorite-form.is-collapsed {
   gap: 0.4rem;
 }
 
-.edit-favorite-form.is-collapsed .field,
-.edit-favorite-form.is-collapsed .actions,
-.edit-favorite-form.is-collapsed #editFavMessage {
+.edit-favorite-form.is-collapsed .edit-form-details {
   display: none;
 }
 
@@ -674,6 +755,13 @@ body.page {
   border: 1px dashed var(--sn-line);
   border-radius: var(--sn-radius-md);
   background: rgba(255, 255, 255, 0.7);
+}
+
+.edit-favorite-form:not(.is-collapsed) .edit-selection-summary {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(180, 134, 92, 0.24);
+  border-radius: var(--sn-radius-md);
+  background: rgba(255, 255, 255, 0.84);
 }
 
 /* Formulaire en Grid */
@@ -1039,6 +1127,14 @@ select:focus {
   }
 
   .edit-drag-board {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-selection-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-form-details {
     grid-template-columns: 1fr;
   }
 

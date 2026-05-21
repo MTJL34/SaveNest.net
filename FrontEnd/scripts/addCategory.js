@@ -23,6 +23,8 @@ let actionMessageType = "";
 let isLoading = true;
 let isDeletingSelection = false;
 let defaultCategoryId = loadDefaultCategory();
+let categoryUndoStack = [];
+let favoriteCountByCategoryId = new Map();
 
 function getAuthToken() {
   // Le token JWT est ajoute aux appels API proteges.
@@ -79,7 +81,10 @@ async function fetchWithAuth(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Une erreur est survenue côté serveur.");
+    const error = new Error(data.message || "Une erreur est survenue côté serveur.");
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;
@@ -227,6 +232,310 @@ function clearActionMessage() {
 function clearDeleteSelection() {
   // Vide la selection multiple de categories.
   selectedCategoryIds = new Set();
+}
+
+function setFavoriteCountsByCategory(favorites) {
+  const counts = new Map();
+
+  for (let index = 0; index < categories.length; index += 1) {
+    counts.set(String(categories[index].id_category), 0);
+  }
+
+  for (let index = 0; index < favorites.length; index += 1) {
+    const favorite = favorites[index];
+    const categoryId = String(favorite.id_category || "");
+
+    if (!categoryId) {
+      continue;
+    }
+
+    counts.set(categoryId, (counts.get(categoryId) || 0) + 1);
+  }
+
+  favoriteCountByCategoryId = counts;
+}
+
+function getCategoryFavoriteCountLabel(categoryId) {
+  const favoriteCount = Number(favoriteCountByCategoryId.get(String(categoryId)) || 0);
+
+  if (favoriteCount === 0) {
+    return "Aucun Favoris";
+  }
+
+  if (favoriteCount === 1) {
+    return "1 Favori";
+  }
+
+  return `${favoriteCount} Favoris`;
+}
+
+async function showCategoryDeleteStrategyModal({
+  categoryCount,
+  favoriteCount,
+  allowMoveToDefault,
+  defaultCategoryName = "",
+}) {
+  return new Promise((resolve) => {
+    const modalEl = document.createElement("div");
+    modalEl.className = "category-confirm-modal";
+    modalEl.innerHTML = `
+      <div class="category-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="categoryDeleteStrategyTitle">
+        <button type="button" class="category-confirm-modal__close" data-delete-strategy-cancel aria-label="Fermer">×</button>
+        <p class="category-confirm-modal__eyebrow">SaveNest</p>
+        <h2 id="categoryDeleteStrategyTitle">Choisir le type de suppression</h2>
+        <p class="category-confirm-modal__text">
+          ${categoryCount} catégorie${categoryCount > 1 ? "s" : ""} sélectionnée${categoryCount > 1 ? "s" : ""} contient${categoryCount > 1 ? "nent" : ""} ${favoriteCount} favori${favoriteCount > 1 ? "s" : ""}.
+        </p>
+        <div class="category-delete-strategy-actions">
+          <button type="button" class="category-confirm-modal__submit" data-delete-strategy="delete_favorites">
+            Supprimer les catégories et leurs favoris
+          </button>
+          <button
+            type="button"
+            class="category-confirm-modal__submit"
+            data-delete-strategy="move_to_default"
+          >
+            ${
+              allowMoveToDefault
+                ? `Reclasser les favoris dans "${defaultCategoryName}"`
+                : "Choisir une catégorie par défaut puis reclasser"
+            }
+          </button>
+          <button type="button" class="category-confirm-modal__cancel" data-delete-strategy-cancel>
+            Annuler
+          </button>
+        </div>
+      </div>
+    `;
+
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-delete-strategy-cancel]")
+    );
+    const strategyButtons = Array.from(
+      modalEl.querySelectorAll("[data-delete-strategy]")
+    );
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal("");
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal("");
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => closeModal(""));
+    }
+
+    for (let index = 0; index < strategyButtons.length; index += 1) {
+      strategyButtons[index].addEventListener("click", () => {
+        closeModal(strategyButtons[index].dataset.deleteStrategy || "");
+      });
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+  });
+}
+
+async function showDefaultCategorySelectionModal(availableCategories) {
+  return new Promise((resolve) => {
+    const optionsMarkup = availableCategories
+      .map(
+        (category) =>
+          `<option value="${category.id_category}">${category.category_name}</option>`
+      )
+      .join("");
+
+    const modalEl = document.createElement("div");
+    modalEl.className = "category-confirm-modal";
+    modalEl.innerHTML = `
+      <div class="category-confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="categoryDefaultSelectionTitle">
+        <button type="button" class="category-confirm-modal__close" data-default-selection-cancel aria-label="Fermer">×</button>
+        <p class="category-confirm-modal__eyebrow">SaveNest</p>
+        <h2 id="categoryDefaultSelectionTitle">Choisir une catégorie par défaut</h2>
+        <p class="category-confirm-modal__text">
+          Aucune catégorie par défaut n'est définie. Choisissez-en une pour y reclasser les favoris avant la suppression.
+        </p>
+        <div class="category-form">
+          <label for="defaultCategorySelection">Catégorie par défaut</label>
+          <select id="defaultCategorySelection">${optionsMarkup}</select>
+          <div class="category-delete-strategy-actions">
+            <button type="button" class="category-confirm-modal__submit" data-default-selection-submit>
+              Utiliser cette catégorie
+            </button>
+            <button type="button" class="category-confirm-modal__cancel" data-default-selection-cancel>
+              Annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const selectEl = modalEl.querySelector("#defaultCategorySelection");
+    const submitButton = modalEl.querySelector("[data-default-selection-submit]");
+    const cancelButtons = Array.from(
+      modalEl.querySelectorAll("[data-default-selection-cancel]")
+    );
+
+    function closeModal(value) {
+      document.removeEventListener("keydown", handleKeydown);
+      modalEl.remove();
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        closeModal("");
+      }
+    }
+
+    modalEl.addEventListener("click", (event) => {
+      if (event.target === modalEl) {
+        closeModal("");
+      }
+    });
+
+    for (let index = 0; index < cancelButtons.length; index += 1) {
+      cancelButtons[index].addEventListener("click", () => closeModal(""));
+    }
+
+    submitButton?.addEventListener("click", () => {
+      closeModal(String(selectEl?.value || ""));
+    });
+
+    document.addEventListener("keydown", handleKeydown);
+    document.body.appendChild(modalEl);
+    selectEl?.focus();
+  });
+}
+
+function normalizeCategoryName(value) {
+  return String(value || "").trim().toLocaleLowerCase("fr-FR");
+}
+
+function hasDuplicateCategoryName(name, excludedCategoryId = "") {
+  const normalizedName = normalizeCategoryName(name);
+
+  if (!normalizedName) {
+    return false;
+  }
+
+  return categories.some(
+    (category) =>
+      String(category.id_category) !== String(excludedCategoryId || "") &&
+      normalizeCategoryName(category.category_name) === normalizedName
+  );
+}
+
+function pushCategoryUndoAction(action) {
+  categoryUndoStack.push(action);
+}
+
+function hasUndoableCategoryAction() {
+  return categoryUndoStack.length > 0;
+}
+
+async function restoreDefaultCategoryPreference(categoryId) {
+  const authUserId = getAuthenticatedUserId();
+
+  if (!authUserId || !categoryId) {
+    return;
+  }
+
+  const data = await fetchWithAuth(`/auth/${authUserId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      default_category_id: Number(categoryId),
+    }),
+  });
+
+  defaultCategoryId = String(categoryId);
+  persistDefaultCategory();
+
+  if (data && data.user) {
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user));
+  }
+}
+
+async function undoLastCategoryAction() {
+  const lastAction = categoryUndoStack[categoryUndoStack.length - 1];
+
+  if (!lastAction) {
+    return false;
+  }
+
+  if (lastAction.type === "update") {
+    const data = await fetchWithAuth(`/categories/${lastAction.before.id_category}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        category_name: lastAction.before.category_name,
+        confidentiality: toApiConfidentiality(lastAction.before.confidentiality),
+        password: lastAction.undoPassword || null,
+      }),
+    });
+
+    if (data && data.category) {
+      categories = categories.map((category) =>
+        String(category.id_category) === String(lastAction.before.id_category)
+          ? data.category
+          : category
+      );
+    }
+
+    categoryUndoStack.pop();
+    actionMessage = `La modification de "${lastAction.before.category_name}" a été annulée.`;
+    actionMessageType = "success";
+    renderPage();
+    return true;
+  }
+
+  if (lastAction.type === "delete") {
+    const data = await fetchWithAuth("/categories/restore", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        category_ids: lastAction.categoryIds,
+      }),
+    });
+
+    if (lastAction.previousDefaultCategoryId) {
+      await restoreDefaultCategoryPreference(lastAction.previousDefaultCategoryId);
+    }
+
+    categoryUndoStack.pop();
+    currentMode = "view";
+    editingCategoryId = null;
+    clearDeleteSelection();
+    await loadCategories(
+      data.message ||
+        `${lastAction.categoryIds.length} catégorie${
+          lastAction.categoryIds.length > 1 ? "s" : ""
+        } restaurée${lastAction.categoryIds.length > 1 ? "s" : ""}.`,
+      "success"
+    );
+    return true;
+  }
+
+  return false;
 }
 
 function syncDeleteSelection() {
@@ -418,6 +727,73 @@ function getActionButtonClass(mode) {
   return currentMode === mode ? "btn-primary is-active" : "btn-primary";
 }
 
+function getAllCategoryIds() {
+  return categories.map((item) => String(item.id_category));
+}
+
+function areAllCategoriesSelected() {
+  return categories.length > 0 && selectedCategoryIds.size === categories.length;
+}
+
+function getDeleteSelectionButtonLabel() {
+  const selectedCount = selectedCategoryIds.size;
+
+  if (selectedCount > 1) {
+    return `Supprimer les sélections (${selectedCount})`;
+  }
+
+  return selectedCount === 1
+    ? "Supprimer la sélection"
+    : "Supprimer la sélection";
+}
+
+function renderCategoryActions() {
+  const canUndoLastAction = hasUndoableCategoryAction();
+
+  if (currentMode === "edit" && editingCategoryId) {
+    return `
+      <div class="category-actions">
+        <button id="submitInlineEditTop" class="btn-primary">Enregistrer</button>
+        <button id="cancelInlineEditTop" class="btn-secondary">Annuler</button>
+        <button id="undoLastCategoryAction" class="btn-primary" ${!canUndoLastAction ? "disabled" : ""}>Annuler l'action</button>
+      </div>
+    `;
+  }
+
+  if (currentMode === "delete") {
+    const hasCategories = categories.length > 0;
+    const selectedCount = selectedCategoryIds.size;
+
+    return `
+      <div class="category-actions">
+        <button
+          id="toggleSelectAllCategories"
+          class="btn-secondary"
+          ${!hasCategories ? "disabled" : ""}
+        >
+          ${areAllCategoriesSelected() ? "Tout désélectionner" : "Tout sélectionner"}
+        </button>
+        <button
+          id="deleteSelectedCategories"
+          class="btn-primary"
+          ${selectedCount === 0 || isDeletingSelection ? "disabled" : ""}
+        >
+          ${isDeletingSelection ? "Suppression..." : getDeleteSelectionButtonLabel()}
+        </button>
+        <button id="undoLastCategoryAction" class="btn-primary">Annuler l'action</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="category-actions">
+      <button id="enterEditMode" class="${getActionButtonClass("edit")}">Modifier</button>
+      <button id="enterDeleteMode" class="${getActionButtonClass("delete")}">Supprimer</button>
+      <button id="undoLastCategoryAction" class="btn-primary" ${!canUndoLastAction ? "disabled" : ""}>Annuler l'action</button>
+    </div>
+  `;
+}
+
 function renderCards() {
   // Genere les cartes de categories selon le mode courant.
   if (isLoading) {
@@ -441,6 +817,20 @@ function renderCards() {
         selectedCategoryIds.has(String(item.id_category));
       const isSelected = isEditSelected || isDeleteSelected;
       const interactiveClass = currentMode === "view" ? "" : "is-clickable";
+      const modeIndicator =
+        currentMode === "edit"
+          ? `<p class="category-card-mode-indicator ${isEditSelected ? "is-active" : ""}">${
+              isEditSelected
+                ? "Catégorie sélectionnée : modifiez-la ci-dessous."
+                : "Cliquez sur cette carte pour la modifier."
+            }</p>`
+          : currentMode === "delete"
+            ? `<p class="category-card-mode-indicator ${isDeleteSelected ? "is-active" : ""}">${
+                isDeleteSelected
+                  ? "Catégorie sélectionnée pour la suppression."
+                  : "Cliquez sur cette carte pour la sélectionner."
+              }</p>`
+            : "";
 
       return `
         <article
@@ -472,8 +862,9 @@ function renderCards() {
           </div>
           <h3>${item.category_name}</h3>
           <p class="category-meta">
-            ${isPrivate ? "Protégée par mot de passe" : "Visible sans mot de passe"}
+            ${getCategoryFavoriteCountLabel(item.id_category)}
           </p>
+          ${modeIndicator}
         </article>
       `;
     })
@@ -648,6 +1039,9 @@ function renderEditPanel() {
   return `
     <section class="inline-edit panel">
       <h2>Modifier la catégorie</h2>
+      <p class="inline-edit-intro">
+        Cliquez dans les champs ci-dessous, mettez à jour la catégorie, puis enregistrez avec les boutons d'action.
+      </p>
       <form id="inlineEditForm" class="category-form">
         <div class="inline-edit-layout">
           <div class="inline-edit-fields">
@@ -670,11 +1064,6 @@ function renderEditPanel() {
             />
 
             <p id="inlineEditPasswordHelp" class="form-message">${editPasswordConfig.help}</p>
-
-            <div class="inline-edit-actions">
-              <button type="submit" class="btn-primary">Enregistrer</button>
-              <button type="button" id="cancelInlineEdit" class="btn-primary">Annuler</button>
-            </div>
           </div>
           <p id="inlineEditMessage" class="form-message confirmation-message" aria-live="polite"></p>
         </div>
@@ -693,9 +1082,13 @@ function renderPage() {
   const defaultCategory = getDefaultCategory();
   const helperText =
     currentMode === "edit"
-      ? "Mode modification actif: clique sur une catégorie pour l'éditer."
+      ? editingCategoryId
+        ? "Mode modification actif : utilisez les champs ci-dessus puis cliquez sur Enregistrer."
+        : "Mode modification actif : cliquez sur une catégorie pour afficher son formulaire de modification."
       : currentMode === "delete"
-        ? "Mode suppression actif: clique sur plusieurs catégories pour les sélectionner, puis supprime la sélection."
+        ? selectedCategoryIds.size > 0
+          ? `${selectedCategoryIds.size} catégorie${selectedCategoryIds.size > 1 ? "s" : ""} sélectionnée${selectedCategoryIds.size > 1 ? "s" : ""}. Utilisez les boutons ci-dessous pour tout sélectionner, tout désélectionner ou supprimer la sélection.`
+          : "Mode suppression actif : cliquez sur une ou plusieurs catégories pour les sélectionner."
         : "Choisis une action ou définis une catégorie par défaut.";
 
   mainEl.innerHTML = `
@@ -753,18 +1146,12 @@ function renderPage() {
           }
         </p>
 
-        <div class="category-actions">
-          <button id="enterEditMode" class="${getActionButtonClass("edit")}">Modifier</button>
-          <button id="enterDeleteMode" class="${getActionButtonClass("delete")}">Supprimer</button>
-          <button id="exitActionMode" class="btn-primary">Annuler l'action</button>
-        </div>
+        ${renderEditPanel()}
 
-        ${renderDeleteToolbar()}
+        ${renderCategoryActions()}
 
         <p class="action-helper">${helperText}</p>
         <p class="form-message ${actionMessageType ? `is-${actionMessageType}` : ""}" id="actionMessage" aria-live="polite">${actionMessage}</p>
-
-        ${renderEditPanel()}
       </section>
     </section>
   `;
@@ -779,9 +1166,13 @@ async function loadCategories(message = "", type = "") {
   renderPage();
 
   try {
-    const data = await fetchWithAuth("/categories");
+    const [categoriesData, favoritesData] = await Promise.all([
+      fetchWithAuth("/categories"),
+      fetchWithAuth("/favs"),
+    ]);
     categories.length = 0;
-    categories.push(...(Array.isArray(data) ? data : []));
+    categories.push(...(Array.isArray(categoriesData) ? categoriesData : []));
+    setFavoriteCountsByCategory(Array.isArray(favoritesData) ? favoritesData : []);
     syncDeleteSelection();
     syncDefaultCategoryState();
 
@@ -818,11 +1209,12 @@ function setupFormEvents() {
   const cardsGrid = document.getElementById("cardsGrid");
   const enterEditModeBtn = document.getElementById("enterEditMode");
   const enterDeleteModeBtn = document.getElementById("enterDeleteMode");
-  const exitActionModeBtn = document.getElementById("exitActionMode");
+  const undoLastCategoryActionBtn = document.getElementById("undoLastCategoryAction");
+  const submitInlineEditTopBtn = document.getElementById("submitInlineEditTop");
+  const cancelInlineEditTopBtn = document.getElementById("cancelInlineEditTop");
+  const toggleSelectAllCategoriesBtn = document.getElementById("toggleSelectAllCategories");
   const deleteSelectedCategoriesBtn = document.getElementById("deleteSelectedCategories");
-  const clearDeleteSelectionBtn = document.getElementById("clearDeleteSelection");
   const inlineEditForm = document.getElementById("inlineEditForm");
-  const cancelInlineEditBtn = document.getElementById("cancelInlineEdit");
 
   privacySelect.addEventListener("change", () => {
     // Le champ mot de passe devient obligatoire seulement pour une categorie privee.
@@ -844,6 +1236,15 @@ function setupFormEvents() {
 
     if (!name) {
       setInlineMessage(messageEl, "Le nom de catégorie est obligatoire.", "error");
+      return;
+    }
+
+    if (hasDuplicateCategoryName(name)) {
+      setInlineMessage(
+        messageEl,
+        "Une catégorie avec ce nom existe déjà.",
+        "error"
+      );
       return;
     }
 
@@ -884,32 +1285,32 @@ function setupFormEvents() {
     }
   });
 
-  enterEditModeBtn.addEventListener("click", () => {
-    // Active le mode ou un clic sur une carte ouvre le formulaire de modification.
-    currentMode = "edit";
-    editingCategoryId = null;
-    clearDeleteSelection();
-    clearActionMessage();
-    renderPage();
-  });
+  if (enterEditModeBtn) {
+    enterEditModeBtn.addEventListener("click", () => {
+      // Si le mode est déjà actif sans catégorie sélectionnée, un second clic le ferme.
+      if (currentMode === "edit" && !editingCategoryId) {
+        currentMode = "view";
+      } else {
+        currentMode = "edit";
+      }
 
-  enterDeleteModeBtn.addEventListener("click", () => {
-    // Active le mode ou les cartes deviennent selectionnables.
-    currentMode = "delete";
-    editingCategoryId = null;
-    clearDeleteSelection();
-    clearActionMessage();
-    renderPage();
-  });
+      editingCategoryId = null;
+      clearDeleteSelection();
+      clearActionMessage();
+      renderPage();
+    });
+  }
 
-  exitActionModeBtn.addEventListener("click", () => {
-    // Retour au mode lecture simple.
-    currentMode = "view";
-    editingCategoryId = null;
-    clearDeleteSelection();
-    clearActionMessage();
-    renderPage();
-  });
+  if (enterDeleteModeBtn) {
+    enterDeleteModeBtn.addEventListener("click", () => {
+      // Active le mode ou les cartes deviennent selectionnables.
+      currentMode = "delete";
+      editingCategoryId = null;
+      clearDeleteSelection();
+      clearActionMessage();
+      renderPage();
+    });
+  }
 
   cardsGrid.addEventListener("click", async (event) => {
     // Un seul ecouteur gere les clics sur toutes les cartes et boutons internes.
@@ -991,9 +1392,14 @@ function setupFormEvents() {
     }
   });
 
-  if (clearDeleteSelectionBtn) {
-    clearDeleteSelectionBtn.addEventListener("click", () => {
-      clearDeleteSelection();
+  if (toggleSelectAllCategoriesBtn) {
+    toggleSelectAllCategoriesBtn.addEventListener("click", () => {
+      if (areAllCategoriesSelected()) {
+        clearDeleteSelection();
+      } else {
+        selectedCategoryIds = new Set(getAllCategoryIds());
+      }
+
       clearActionMessage();
       renderPage();
     });
@@ -1007,6 +1413,100 @@ function setupFormEvents() {
 
       if (selectedCategories.length === 0) {
         actionMessage = "Sélectionnez au moins une catégorie à supprimer.";
+        actionMessageType = "error";
+        renderPage();
+        return;
+      }
+
+      let deleteStrategy = "";
+
+      try {
+        const allFavorites = await fetchWithAuth("/favs");
+        const selectedCategoryIdSet = new Set(
+          selectedCategories.map((category) => String(category.id_category))
+        );
+        const attachedFavorites = Array.isArray(allFavorites)
+          ? allFavorites.filter((favorite) =>
+              selectedCategoryIdSet.has(String(favorite.id_category))
+            )
+          : [];
+        const defaultCategory = categories.find(
+          (category) => String(category.id_category) === String(defaultCategoryId)
+        );
+        let resolvedDefaultCategory = defaultCategory || null;
+        let canMoveToDefault =
+          Boolean(resolvedDefaultCategory) &&
+          !selectedCategoryIdSet.has(String(defaultCategoryId));
+
+        if (attachedFavorites.length > 0) {
+          deleteStrategy = await showCategoryDeleteStrategyModal({
+            categoryCount: selectedCategories.length,
+            favoriteCount: attachedFavorites.length,
+            allowMoveToDefault: canMoveToDefault,
+            defaultCategoryName: resolvedDefaultCategory?.category_name || "",
+          });
+
+          if (!deleteStrategy) {
+            return;
+          }
+
+          if (deleteStrategy === "move_to_default" && !canMoveToDefault) {
+            const selectableDefaultCategories = categories.filter(
+              (category) =>
+                !selectedCategoryIdSet.has(String(category.id_category))
+            );
+
+            if (selectableDefaultCategories.length === 0) {
+              actionMessage =
+                "Aucune autre catégorie n'est disponible pour devenir la catégorie par défaut.";
+              actionMessageType = "error";
+              renderPage();
+              return;
+            }
+
+            const chosenDefaultCategoryId =
+              await showDefaultCategorySelectionModal(selectableDefaultCategories);
+
+            if (!chosenDefaultCategoryId) {
+              return;
+            }
+
+            const authUserId = getAuthenticatedUserId();
+
+            if (!authUserId) {
+              redirectToLogin();
+              return;
+            }
+
+            const data = await fetchWithAuth(`/auth/${authUserId}`, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                default_category_id: Number(chosenDefaultCategoryId),
+              }),
+            });
+
+            defaultCategoryId = String(chosenDefaultCategoryId);
+            persistDefaultCategory();
+
+            if (data && data.user) {
+              localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user));
+            }
+
+            resolvedDefaultCategory =
+              categories.find(
+                (category) =>
+                  String(category.id_category) === String(chosenDefaultCategoryId)
+              ) || null;
+            canMoveToDefault = Boolean(resolvedDefaultCategory);
+          }
+        }
+      } catch (error) {
+        actionMessage =
+          error.message ||
+          "Impossible de vérifier les favoris liés avant la suppression.";
         actionMessageType = "error";
         renderPage();
         return;
@@ -1027,14 +1527,29 @@ function setupFormEvents() {
       renderPage();
 
       let deletedCount = 0;
+      const deletedCategoryIds = [];
+      const deletedCategoryNames = [];
       const failedNames = [];
+      const previousDefaultCategoryId = selectedCategories.some(
+        (category) => String(category.id_category) === String(defaultCategoryId)
+      )
+        ? String(defaultCategoryId)
+        : "";
 
       for (const category of selectedCategories) {
         try {
           await fetchWithAuth(`/categories/${category.id_category}`, {
             method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              delete_strategy: deleteStrategy || undefined,
+            }),
           });
           deletedCount += 1;
+          deletedCategoryIds.push(String(category.id_category));
+          deletedCategoryNames.push(category.category_name);
         } catch (error) {
           failedNames.push(category.category_name);
         }
@@ -1043,6 +1558,15 @@ function setupFormEvents() {
       isDeletingSelection = false;
       editingCategoryId = null;
       clearDeleteSelection();
+
+      if (deletedCategoryIds.length > 0) {
+        pushCategoryUndoAction({
+          type: "delete",
+          categoryIds: deletedCategoryIds,
+          categoryNames: deletedCategoryNames,
+          previousDefaultCategoryId,
+        });
+      }
 
       if (failedNames.length > 0) {
         currentMode = "delete";
@@ -1065,11 +1589,17 @@ function setupFormEvents() {
     });
   }
 
-  if (cancelInlineEditBtn) {
-    cancelInlineEditBtn.addEventListener("click", () => {
+  if (cancelInlineEditTopBtn) {
+    cancelInlineEditTopBtn.addEventListener("click", () => {
       editingCategoryId = null;
       clearActionMessage();
       renderPage();
+    });
+  }
+
+  if (submitInlineEditTopBtn && inlineEditForm) {
+    submitInlineEditTopBtn.addEventListener("click", () => {
+      inlineEditForm.requestSubmit();
     });
   }
 
@@ -1131,6 +1661,15 @@ function setupFormEvents() {
         return;
       }
 
+      if (hasDuplicateCategoryName(name, editingCategoryId)) {
+        setInlineMessage(
+          inlineEditMessage,
+          "Une catégorie avec ce nom existe déjà.",
+          "error"
+        );
+        return;
+      }
+
       const security = await resolveEditCategorySecurity({
         selectedCategory,
         confidentiality,
@@ -1144,6 +1683,7 @@ function setupFormEvents() {
       setInlineMessage(inlineEditMessage, "");
 
       try {
+        const previousCategory = { ...selectedCategory };
         const data = await fetchWithAuth(`/categories/${editingCategoryId}`, {
           method: "PATCH",
           headers: {
@@ -1163,24 +1703,48 @@ function setupFormEvents() {
               : category
           );
           syncDefaultCategoryState();
-          syncCategoryOrderState();
+          pushCategoryUndoAction({
+            type: "update",
+            before: previousCategory,
+            after: data.category,
+            undoPassword: security.password || "",
+          });
         }
 
         clearDeleteSelection();
-        actionMessage = "";
-        actionMessageType = "";
+        actionMessage = data.message || "Catégorie mise à jour avec succès.";
+        actionMessageType = "success";
         renderPage();
-        setInlineMessage(
-          document.getElementById("inlineEditMessage"),
-          data.message || "Catégorie mise à jour avec succès.",
-          "success"
-        );
       } catch (error) {
         setInlineMessage(
           inlineEditMessage,
           error.message || "Impossible de mettre à jour la catégorie pour le moment.",
           "error"
         );
+      }
+    });
+  }
+
+  if (undoLastCategoryActionBtn) {
+    undoLastCategoryActionBtn.addEventListener("click", async () => {
+      if (!hasUndoableCategoryAction()) {
+        if (currentMode === "delete") {
+          currentMode = "view";
+          editingCategoryId = null;
+          clearDeleteSelection();
+          clearActionMessage();
+          renderPage();
+        }
+        return;
+      }
+
+      try {
+        await undoLastCategoryAction();
+      } catch (error) {
+        actionMessage =
+          error.message || "Impossible d'annuler la dernière action pour le moment.";
+        actionMessageType = "error";
+        renderPage();
       }
     });
   }

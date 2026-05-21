@@ -26,6 +26,7 @@ let favorites = [];
 let selectedEditFavId = "";
 let selectedEditFavIds = new Set();
 let selectedDeleteFavId = "";
+let selectedEditCategoryId = "";
 let unlockedCategoryIds = new Set();
 let expandedEditCategoryIds = new Set();
 let expandedDeleteCategoryIds = new Set();
@@ -35,7 +36,7 @@ let defaultCategoryId = loadDefaultCategory();
 let draggedCategoryId = "";
 let draggedFavoriteId = "";
 let draggedFavoriteIds = [];
-let currentActionMode = "edit";
+let currentActionMode = "view";
 
 const html = `
   <section class="hero">
@@ -106,60 +107,79 @@ const html = `
 
       <p id="favoriteSummary" class="default-category-summary"></p>
 
-      <div class="workspace-actions">
-        <button id="enterEditMode" type="button" class="btn btn-primary">Modifier</button>
-        <button id="enterDeleteMode" type="button" class="btn btn-primary">Supprimer</button>
-      </div>
-
-      <p id="workspaceActionHelper" class="action-helper"></p>
-
       <section id="editWorkspaceSection" class="workspace-section">
         <div class="workspace-section-header">
           <h2>Modifier un favori</h2>
-          <p>Ouvrez une ou plusieurs catégories pour choisir le favori à mettre à jour.</p>
+          <p>Ouvrez une ou plusieurs catégories, puis choisissez si vous voulez modifier un favori ou en déplacer plusieurs.</p>
         </div>
 
         <div class="edit-board-header">
-          <h3>Ouvrez une ou plusieurs catégories</h3>
+          <h3>Choisir quoi modifier</h3>
           <p id="editBoardMessage" class="help">
-            Ouvrez une catégorie, puis cochez plusieurs favoris si vous voulez les déplacer ensemble.
+            Cliquez sur "Modifier" pour choisir une catégorie, puis le favori à mettre à jour.
           </p>
         </div>
 
         <div class="edit-category-shortcuts">
-          <p class="edit-category-shortcuts-title">Catégories ouvrables</p>
+          <p class="edit-category-shortcuts-title">Catégories à ouvrir</p>
           <div id="editCategoryQuickList" class="edit-category-quick-list"></div>
         </div>
 
         <div id="editDragBoard" class="edit-drag-board"></div>
         <p id="editCategoryEmptyState" class="help">Aucune catégorie pour le moment.</p>
 
+        <div id="editFormGuide" class="workspace-guide">
+          <p class="workspace-guide-title">Comment utiliser cette zone</p>
+          <p id="editFormGuideText" class="workspace-guide-text">
+            Ouvrez une catégorie pour afficher ses favoris. Cliquez sur un favori pour modifier son titre, son lien ou sa catégorie. Cochez plusieurs favoris pour les déplacer ensemble.
+          </p>
+        </div>
+
         <form id="editFavForm" class="form-grid edit-favorite-form is-collapsed" aria-expanded="false">
+          <p id="editFormModeTitle" class="edit-form-mode-title">Choisissez un favori à modifier</p>
           <p id="editSelectionSummary" class="help edit-selection-summary">
             Ouvrez une catégorie puis choisissez un favori pour le modifier.
           </p>
 
-          <div class="field">
-            <label for="editFavTitle">Titre</label>
-            <input id="editFavTitle" type="text" required />
+          <div id="editSelectionPicker" class="edit-selection-picker">
+            <div class="field">
+              <label for="editCategorySelector">Sélectionner la catégorie affiliée</label>
+              <select id="editCategorySelector">
+                <option value="">-- Sélectionnez une catégorie --</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="editFavoriteSelector">Sélectionner le favori à modifier</label>
+              <select id="editFavoriteSelector">
+                <option value="">-- Sélectionnez un favori --</option>
+              </select>
+            </div>
           </div>
 
-          <div class="field url-field">
-            <label for="editFavUrl">URL</label>
-            <input id="editFavUrl" type="url" />
-          </div>
+          <div id="editFormDetails" class="edit-form-details">
+            <div class="field">
+              <label for="editFavTitle">Titre</label>
+              <input id="editFavTitle" type="text" required />
+            </div>
 
-          <div class="field category-field">
-            <label for="editFavCategory">Catégorie</label>
-            <select id="editFavCategory" required>
-              <option value="">-- Sélectionnez une catégorie --</option>
-            </select>
-          </div>
+            <div class="field url-field">
+              <label for="editFavUrl">URL</label>
+              <input id="editFavUrl" type="url" />
+            </div>
 
-          <p id="editFavMessage" class="help confirmation-message" aria-live="polite"></p>
+            <div class="field category-field">
+              <label for="editFavCategory">Catégorie</label>
+              <select id="editFavCategory" required>
+                <option value="">-- Sélectionnez une catégorie --</option>
+              </select>
+            </div>
 
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Mettre à jour</button>
+            <p id="editFavMessage" class="help confirmation-message" aria-live="polite"></p>
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary">Mettre à jour</button>
+            </div>
           </div>
         </form>
       </section>
@@ -194,6 +214,13 @@ const html = `
           <p id="deleteFavMessage" class="help confirmation-message" aria-live="polite"></p>
         </form>
       </section>
+
+      <div class="workspace-actions">
+        <button id="enterEditMode" type="button" class="btn btn-primary">Modifier</button>
+        <button id="enterDeleteMode" type="button" class="btn btn-primary">Supprimer</button>
+      </div>
+
+      <p id="workspaceActionHelper" class="action-helper"></p>
     </section>
   </section>
 `;
@@ -227,6 +254,13 @@ const editDragBoard = document.getElementById("editDragBoard");
 const editBoardMessage = document.getElementById("editBoardMessage");
 const editCategoryQuickList = document.getElementById("editCategoryQuickList");
 const editCategoryEmptyState = document.getElementById("editCategoryEmptyState");
+const editSelectionPicker = document.getElementById("editSelectionPicker");
+const editCategorySelector = document.getElementById("editCategorySelector");
+const editFavoriteSelector = document.getElementById("editFavoriteSelector");
+const editFormDetails = document.getElementById("editFormDetails");
+const editFormGuide = document.getElementById("editFormGuide");
+const editFormGuideText = document.getElementById("editFormGuideText");
+const editFormModeTitle = document.getElementById("editFormModeTitle");
 const editSelectionSummary = document.getElementById("editSelectionSummary");
 const editFavTitle = document.getElementById("editFavTitle");
 const editFavUrl = document.getElementById("editFavUrl");
@@ -240,6 +274,7 @@ const deleteFavId = document.getElementById("deleteFavId");
 const deleteSelectionSummary = document.getElementById("deleteSelectionSummary");
 const deleteFavMessage = document.getElementById("deleteFavMessage");
 const addSubmitButton = favForm.querySelector('button[type="submit"]');
+const addResetButton = favForm.querySelector('button[type="reset"]');
 const editSubmitButton = editFavForm.querySelector('button[type="submit"]');
 const deleteSubmitButton = deleteFavForm.querySelector('button[type="submit"]');
 
@@ -895,10 +930,102 @@ function updateWorkspaceSummary() {
     : "Aucune catégorie par défaut pour le moment.";
 }
 
+function updateAddFavoriteCallToAction() {
+  const hasCategories = categories.length > 0;
+
+  if (addSubmitButton) {
+    addSubmitButton.textContent = hasCategories
+      ? "Ajouter le favori"
+      : "Ajouter une catégorie";
+  }
+
+  favTitle.disabled = !hasCategories;
+  favUrl.disabled = !hasCategories;
+  favCategory.disabled = !hasCategories;
+
+  if (addResetButton) {
+    addResetButton.disabled = !hasCategories;
+  }
+}
+
+function updateEditFormGuidance() {
+  if (!editFormGuide || !editFormGuideText || !editFormModeTitle) {
+    return;
+  }
+
+  if (currentActionMode !== "edit") {
+    editFormModeTitle.textContent = "Activez le mode modification";
+    editFormGuideText.textContent =
+      'Le bouton "Modifier" active la sélection de la catégorie et du favori à mettre à jour.';
+    editFormGuide.classList.remove("is-bulk", "is-ready");
+    return;
+  }
+
+  const expandedCount = expandedEditCategoryIds.size;
+  const batchCount = selectedEditFavIds.size;
+  const selectedFav = favorites.find(
+    (item) => String(item.id_favs) === String(selectedEditFavId)
+  );
+
+  editFormGuide.classList.remove("is-bulk", "is-ready");
+
+  if (categories.length === 0) {
+    editFormModeTitle.textContent = "Créez d'abord une catégorie";
+    editFormGuideText.textContent =
+      "Aucune catégorie n'est disponible. Commencez par créer une catégorie, puis revenez ici pour ajouter et modifier vos favoris.";
+    return;
+  }
+
+  if (selectedFav) {
+    editFormModeTitle.textContent = `Modification de : ${selectedFav.title_favs}`;
+    editFormGuideText.textContent =
+      "Le formulaire ci-dessous modifie ce favori uniquement. Vous pouvez changer son titre, son lien ou sa catégorie, puis cliquer sur Mettre à jour.";
+    editFormGuide.classList.add("is-ready");
+    return;
+  }
+
+  if (batchCount > 1) {
+    editFormModeTitle.textContent = `${batchCount} favoris cochés`;
+    editFormGuideText.textContent =
+      "La sélection multiple sert au déplacement groupé. Faites glisser l'un des favoris cochés vers une autre catégorie pour déplacer toute la sélection ensemble.";
+    editFormGuide.classList.add("is-bulk");
+    return;
+  }
+
+  if (batchCount === 1) {
+    editFormModeTitle.textContent = "1 favori coché";
+    editFormGuideText.textContent =
+      "Le favori coché peut être déplacé par glisser-déposer. Si vous voulez modifier son contenu, cliquez directement sur sa carte pour charger le formulaire.";
+    return;
+  }
+
+  if (expandedCount > 1) {
+    editFormModeTitle.textContent = "Plusieurs catégories ouvertes";
+    editFormGuideText.textContent =
+      "Choisissez maintenant un favori dans l'une des catégories ouvertes pour modifier sa fiche, ou cochez-en plusieurs si vous voulez seulement les déplacer.";
+    return;
+  }
+
+  if (expandedCount === 1) {
+    editFormModeTitle.textContent = "Catégorie ouverte";
+    editFormGuideText.textContent =
+      "Les favoris de cette catégorie sont affichés. Cliquez sur l'un d'eux pour remplir le formulaire de modification.";
+    return;
+  }
+
+  editFormModeTitle.textContent = "Choisissez un favori à modifier";
+  editFormGuideText.textContent =
+    "Ouvrez une catégorie pour afficher ses favoris. Cliquez sur un favori pour modifier son titre, son lien ou sa catégorie. Cochez plusieurs favoris pour les déplacer ensemble.";
+}
+
 function getActionHelperText() {
   // Texte court qui explique le mode actif.
+  if (currentActionMode === "view") {
+    return "Choisissez Modifier ou Supprimer pour activer une action sur vos favoris.";
+  }
+
   if (currentActionMode === "edit") {
-    return "Choisissez un favori à modifier ou cochez-en plusieurs pour les déplacer ensemble.";
+    return "Choisissez d'abord la catégorie affiliée, puis le favori à modifier.";
   }
 
   if (currentActionMode === "delete") {
@@ -931,6 +1058,94 @@ function updateActionModeUI() {
   }
 }
 
+function syncSelectedEditCategory() {
+  const availableCategoryIds = getAllFavoriteCategoryIds();
+
+  if (availableCategoryIds.length === 0) {
+    selectedEditCategoryId = "";
+    return;
+  }
+
+  if (!availableCategoryIds.includes(String(selectedEditCategoryId || ""))) {
+    selectedEditCategoryId = availableCategoryIds[0];
+  }
+}
+
+function getSelectedEditCategoryFavorites() {
+  if (!selectedEditCategoryId) {
+    return [];
+  }
+
+  return getFavoritesForCategory(selectedEditCategoryId);
+}
+
+function syncSelectedEditFavoriteForCategory() {
+  const categoryFavorites = getSelectedEditCategoryFavorites();
+  const selectedFavoriteStillVisible = categoryFavorites.some(
+    (fav) => String(fav.id_favs) === String(selectedEditFavId)
+  );
+
+  if (selectedFavoriteStillVisible) {
+    return;
+  }
+
+  selectedEditFavId = "";
+}
+
+function renderEditSelectionPicker() {
+  if (!editSelectionPicker || !editCategorySelector || !editFavoriteSelector) {
+    return;
+  }
+
+  const isEditModeActive = currentActionMode === "edit";
+  syncSelectedEditCategory();
+  syncSelectedEditFavoriteForCategory();
+
+  editSelectionPicker.classList.toggle("is-disabled", !isEditModeActive);
+
+  if (categories.length === 0) {
+    editCategorySelector.innerHTML =
+      '<option value="">-- Aucune catégorie disponible --</option>';
+    editFavoriteSelector.innerHTML =
+      '<option value="">-- Aucun favori disponible --</option>';
+    editCategorySelector.disabled = true;
+    editFavoriteSelector.disabled = true;
+    return;
+  }
+
+  editCategorySelector.innerHTML = categories
+    .map(
+      (category) =>
+        `<option value="${category.id_category}">${category.category_name}</option>`
+    )
+    .join("");
+
+  editCategorySelector.value = String(selectedEditCategoryId || "");
+  editCategorySelector.disabled = !isEditModeActive;
+
+  const categoryFavorites = getSelectedEditCategoryFavorites();
+
+  if (categoryFavorites.length === 0) {
+    editFavoriteSelector.innerHTML =
+      '<option value="">-- Aucun favori dans cette catégorie --</option>';
+    editFavoriteSelector.value = "";
+    editFavoriteSelector.disabled = true;
+    return;
+  }
+
+  editFavoriteSelector.innerHTML = `
+    <option value="">-- Sélectionnez un favori --</option>
+    ${categoryFavorites
+      .map(
+        (fav) => `<option value="${fav.id_favs}">${fav.title_favs}</option>`
+      )
+      .join("")}
+  `;
+
+  editFavoriteSelector.value = String(selectedEditFavId || "");
+  editFavoriteSelector.disabled = !isEditModeActive;
+}
+
 function renderCategorySelects() {
   // Remplit les selects de categories pour l'ajout et la modification.
   const selectedAddCategoryId = String(favCategory.value || "");
@@ -958,6 +1173,10 @@ function getFavoritesForCategory(categoryId) {
   return favorites.filter(
     (fav) => String(fav.id_category) === String(categoryId)
   );
+}
+
+function getAllFavoriteCategoryIds() {
+  return categories.map((category) => String(category.id_category));
 }
 
 function syncFavoriteOrderState() {
@@ -1294,6 +1513,13 @@ function renderEditBoard() {
               ? `
                 <div class="edit-locked-state">
                   <p>Catégorie privée protégée. Cliquez de nouveau pour saisir le mot de passe.</p>
+                  <button
+                    type="button"
+                    class="edit-locked-action"
+                    data-unlock-edit-category="${categoryId}"
+                  >
+                    Déverrouiller cette catégorie
+                  </button>
                 </div>
               `
               : `
@@ -1374,7 +1600,14 @@ function renderDeleteBoard() {
               ? !isUnlocked
                 ? `
                   <div class="edit-locked-state">
-                    <p>Catégorie privée protégée. Cliquez de nouveau pour saisir le mot de passe.</p>
+                    <p>Catégorie privée protégée. Utilisez le bouton ci-dessous pour saisir le mot de passe, ou refermez simplement la catégorie.</p>
+                    <button
+                      type="button"
+                      class="edit-locked-action"
+                      data-unlock-delete-category="${categoryId}"
+                    >
+                      Déverrouiller cette catégorie
+                    </button>
                   </div>
                 `
                 : `
@@ -1406,12 +1639,25 @@ function fillEditForm(selectedId) {
   if (!fav) {
     selectedEditFavId = "";
     editFavForm.reset();
-    setEditSelectionSummary(
-      "Ouvrez une catégorie puis choisissez un favori pour le modifier."
-    );
+    if (selectedEditFavIds.size > 1) {
+      setEditSelectionSummary(
+        `${selectedEditFavIds.size} favoris sont cochés. La sélection multiple sert au déplacement groupé ; cliquez sur un favori si vous voulez modifier sa fiche.`,
+        "success"
+      );
+    } else if (selectedEditFavIds.size === 1) {
+      setEditSelectionSummary(
+        "1 favori est coché pour un déplacement. Cliquez sur ce favori pour charger son formulaire de modification.",
+        "success"
+      );
+    } else {
+      setEditSelectionSummary(
+        "Ouvrez une catégorie puis choisissez un favori pour le modifier."
+      );
+    }
     editFavForm.classList.add("is-collapsed");
     editFavForm.setAttribute("aria-expanded", "false");
     setMessage(editFavMessage, "");
+    updateEditFormGuidance();
     return;
   }
 
@@ -1419,9 +1665,13 @@ function fillEditForm(selectedId) {
   editFavTitle.value = fav.title_favs || "";
   editFavUrl.value = fav.url_favs || "";
   editFavCategory.value = String(fav.id_category || "");
-  setEditSelectionSummary(`Favori sélectionné : ${fav.title_favs}.`);
+  setEditSelectionSummary(
+    `Favori sélectionné : "${fav.title_favs}". Modifiez ses informations ci-dessous puis cliquez sur "Mettre à jour".`,
+    "success"
+  );
   editFavForm.classList.remove("is-collapsed");
   editFavForm.setAttribute("aria-expanded", "true");
+  updateEditFormGuidance();
 }
 
 function fillDeleteSelection(selectedId) {
@@ -1495,56 +1745,166 @@ function syncDeleteSelectionState() {
 
 async function handleEditCategoryToggle(categoryId) {
   // Ouvre/ferme une categorie dans le panneau modification.
-  // Si elle est privee, le deuxieme clic demande le mot de passe.
+  // Les categories privees peuvent maintenant etre refermees sans redemander le mot de passe.
   const normalizedCategoryId = String(categoryId || "");
   const category = getCategoryById(normalizedCategoryId);
 
   if (!category) return;
 
   const isExpanded = expandedEditCategoryIds.has(normalizedCategoryId);
-  const isPrivate = isCategoryPrivate(category);
-  const isUnlocked = !isPrivate || isCategoryUnlocked(normalizedCategoryId);
 
-  if (!isUnlocked) {
-    if (!isExpanded) {
-      expandedEditCategoryIds.add(normalizedCategoryId);
-      renderEditCategoryQuickList();
-      renderEditBoard();
+  selectedEditCategoryId = normalizedCategoryId;
+  expandedEditCategoryIds = new Set([normalizedCategoryId]);
+  selectedEditFavId = "";
+  selectedEditFavIds.clear();
+  renderEditSelectionPicker();
+  renderEditCategoryQuickList();
+  renderEditBoard();
+
+  if (isCategoryPrivate(category) && !isCategoryUnlocked(normalizedCategoryId)) {
+    setMessage(
+      editBoardMessage,
+      `Catégorie "${category.category_name}" ouverte. Cliquez sur "Déverrouiller cette catégorie" pour afficher ses favoris.`,
+      "success"
+    );
+  } else {
+    setMessage(
+      editBoardMessage,
+      `Catégorie "${category.category_name}" ouverte.`,
+      "success"
+    );
+  }
+}
+
+async function unlockEditCategory(categoryId) {
+  const normalizedCategoryId = String(categoryId || "");
+  const category = getCategoryById(normalizedCategoryId);
+
+  if (!category) {
+    return;
+  }
+
+  try {
+    const hasAccess = await ensureCategorySelectionAccess(normalizedCategoryId);
+
+    if (!hasAccess) {
+      return;
+    }
+
+    selectedEditCategoryId = normalizedCategoryId;
+    expandedEditCategoryIds = new Set([normalizedCategoryId]);
+    renderEditSelectionPicker();
+    renderEditCategoryQuickList();
+    renderEditBoard();
+    setMessage(
+      editBoardMessage,
+      `Catégorie "${category.category_name}" déverrouillée.`,
+      "success"
+    );
+  } catch (error) {
+    setMessage(editBoardMessage, getUnlockErrorMessage(error), "error");
+  }
+}
+
+async function handleDeleteCategoryToggle(categoryId) {
+  const normalizedCategoryId = String(categoryId || "");
+  const category = getCategoryById(normalizedCategoryId);
+
+  if (!category) return;
+
+  if (expandedDeleteCategoryIds.has(normalizedCategoryId)) {
+    expandedDeleteCategoryIds.delete(normalizedCategoryId);
+  } else {
+    expandedDeleteCategoryIds.add(normalizedCategoryId);
+  }
+
+  renderDeleteBoard();
+
+  if (expandedDeleteCategoryIds.has(normalizedCategoryId)) {
+    if (isCategoryPrivate(category) && !isCategoryUnlocked(normalizedCategoryId)) {
       setMessage(
-        editBoardMessage,
-        `Catégorie "${category.category_name}" protégée. Cliquez de nouveau pour saisir le mot de passe.`
+        deleteBoardMessage,
+        `Catégorie "${category.category_name}" ouverte. Cliquez sur "Déverrouiller cette catégorie" pour afficher ses favoris.`,
+        "success"
       );
       return;
     }
 
-    try {
-      const hasAccess = await ensureCategorySelectionAccess(normalizedCategoryId);
+    setMessage(
+      deleteBoardMessage,
+      `Catégorie "${category.category_name}" ouverte.`,
+      "success"
+    );
+  }
+}
 
-      if (!hasAccess) {
-        return;
-      }
+function applySelectedEditCategory(categoryId) {
+  const normalizedCategoryId = String(categoryId || "");
+  const category = getCategoryById(normalizedCategoryId);
 
-      renderEditCategoryQuickList();
-      renderEditBoard();
-      setMessage(
-        editBoardMessage,
-        `Catégorie "${category.category_name}" déverrouillée.`,
-        "success"
-      );
-    } catch (error) {
-      setMessage(editBoardMessage, getUnlockErrorMessage(error), "error");
-    }
+  if (!category) {
+    selectedEditCategoryId = "";
+    selectedEditFavId = "";
+    expandedEditCategoryIds.clear();
+    renderEditSelectionPicker();
+    renderEditCategoryQuickList();
+    renderEditBoard();
+    fillEditForm("");
     return;
   }
 
-  if (isExpanded) {
-    expandedEditCategoryIds.delete(normalizedCategoryId);
-  } else {
-    expandedEditCategoryIds.add(normalizedCategoryId);
-  }
-
+  selectedEditCategoryId = normalizedCategoryId;
+  selectedEditFavId = "";
+  selectedEditFavIds.clear();
+  expandedEditCategoryIds = new Set([normalizedCategoryId]);
+  renderEditSelectionPicker();
   renderEditCategoryQuickList();
   renderEditBoard();
+  fillEditForm("");
+}
+
+function applySelectedEditFavorite(favoriteId) {
+  const normalizedFavoriteId = String(favoriteId || "");
+
+  if (!normalizedFavoriteId) {
+    selectedEditFavId = "";
+    renderEditSelectionPicker();
+    fillEditForm("");
+    return;
+  }
+
+  fillEditForm(normalizedFavoriteId);
+  renderEditSelectionPicker();
+  renderEditBoard();
+  syncFormAvailability();
+  setMessage(editFavMessage, "");
+}
+
+async function unlockDeleteCategory(categoryId) {
+  const normalizedCategoryId = String(categoryId || "");
+  const category = getCategoryById(normalizedCategoryId);
+
+  if (!category) {
+    return;
+  }
+
+  try {
+    const hasAccess = await ensureCategorySelectionAccess(normalizedCategoryId);
+
+    if (!hasAccess) {
+      return;
+    }
+
+    expandedDeleteCategoryIds.add(normalizedCategoryId);
+    renderDeleteBoard();
+    setMessage(
+      deleteBoardMessage,
+      `Catégorie "${category.category_name}" déverrouillée.`,
+      "success"
+    );
+  } catch (error) {
+    setMessage(deleteBoardMessage, getUnlockErrorMessage(error), "error");
+  }
 }
 
 function syncFormAvailability() {
@@ -1554,8 +1914,7 @@ function syncFormAvailability() {
   const hasSelectedEditFavorite = Boolean(selectedEditFavId);
   const hasSelectedDeleteFavorite = Boolean(selectedDeleteFavId);
 
-  favCategory.disabled = !hasCategories;
-  addSubmitButton.disabled = !hasCategories;
+  updateAddFavoriteCallToAction();
 
   editFavTitle.disabled = !hasSelectedEditFavorite;
   editFavUrl.disabled = !hasSelectedEditFavorite;
@@ -1566,15 +1925,13 @@ function syncFormAvailability() {
   if (!hasCategories) {
     setMessage(
       favFormMessage,
-      "Créez d'abord une catégorie avant d'ajouter un favori.",
+      "Créez d'abord une catégorie. Le bouton ci-dessous vous y emmène directement.",
       "error"
     );
   }
 
   if (!hasSelectedEditFavorite) {
-    setEditSelectionSummary(
-      "Ouvrez une catégorie puis choisissez un favori pour le modifier."
-    );
+    fillEditForm("");
   }
 
   if (!hasSelectedDeleteFavorite) {
@@ -1582,6 +1939,8 @@ function syncFormAvailability() {
       "Ouvrez une catégorie puis choisissez un favori pour le supprimer."
     );
   }
+
+  updateEditFormGuidance();
 }
 
 function sortFavoritesByStoredOrder() {
@@ -1635,11 +1994,14 @@ function refreshUI() {
   sortFavoritesByStoredOrder();
   syncEditSelectionState();
   syncDeleteSelectionState();
+  syncSelectedEditCategory();
+  syncSelectedEditFavoriteForCategory();
   categories = sortCategoriesByStoredOrder(categories);
   syncDefaultCategoryState();
   updateWorkspaceSummary();
   updateActionModeUI();
   renderCategorySelects();
+  renderEditSelectionPicker();
   renderEditCategoryQuickList();
   renderEditBoard();
   renderDeleteBoard();
@@ -1896,6 +2258,11 @@ favForm.addEventListener("submit", async (event) => {
   // Ajout d'un favori depuis le formulaire de gauche.
   event.preventDefault();
 
+  if (categories.length === 0) {
+    window.location.assign("../html/category.html");
+    return;
+  }
+
   const title = favTitle.value.trim();
   const url = favUrl.value.trim();
   const chosenCategoryId = String(favCategory.value || "");
@@ -1970,15 +2337,35 @@ favCategory.addEventListener("change", () => {
 });
 
 enterEditModeButton.addEventListener("click", () => {
-  // Affiche le panneau de modification.
+  // Affiche le panneau de modification et ouvre les catégories pour rendre l'action visible.
   currentActionMode = "edit";
-  updateActionModeUI();
+  syncSelectedEditCategory();
+  expandedEditCategoryIds = selectedEditCategoryId
+    ? new Set([selectedEditCategoryId])
+    : new Set();
+  selectedEditFavId = "";
+  selectedEditFavIds.clear();
+  refreshUI();
+  setMessage(
+    editBoardMessage,
+    categories.length > 0
+      ? "Mode modification actif. Les catégories sont ouvertes pour vous permettre de choisir quoi modifier."
+      : "Aucune catégorie disponible pour le moment."
+  );
 });
 
 enterDeleteModeButton.addEventListener("click", () => {
-  // Affiche le panneau de suppression.
+  // Affiche le panneau de suppression et ouvre les catégories pour rendre l'action visible.
   currentActionMode = "delete";
-  updateActionModeUI();
+  expandedDeleteCategoryIds = new Set(getAllFavoriteCategoryIds());
+  selectedDeleteFavId = "";
+  refreshUI();
+  setMessage(
+    deleteBoardMessage,
+    categories.length > 0
+      ? "Mode suppression actif. Les catégories sont ouvertes pour vous permettre de choisir quoi supprimer."
+      : "Aucune catégorie disponible pour le moment."
+  );
 });
 
 window.addEventListener("pagehide", () => {
@@ -1996,6 +2383,17 @@ window.addEventListener("pageshow", (event) => {
 
 editDragBoard.addEventListener("click", async (event) => {
   // Gestion des clics dans le panneau de modification.
+  if (currentActionMode !== "edit") {
+    return;
+  }
+
+  const unlockButton = event.target.closest("[data-unlock-edit-category]");
+
+  if (unlockButton) {
+    await unlockEditCategory(unlockButton.dataset.unlockEditCategory);
+    return;
+  }
+
   const categoryToggle = event.target.closest("[data-toggle-edit-category]");
 
   if (categoryToggle) {
@@ -2030,19 +2428,42 @@ editDragBoard.addEventListener("click", async (event) => {
 
   if (!favoriteButton) return;
 
-  fillEditForm(favoriteButton.dataset.editFav);
-  renderEditBoard();
-  syncFormAvailability();
-  setMessage(editFavMessage, "");
+  applySelectedEditFavorite(favoriteButton.dataset.editFav);
 });
 
 editCategoryQuickList?.addEventListener("click", async (event) => {
   // Clic sur une pastille du haut : ouvrir ou fermer la categorie.
+  if (currentActionMode !== "edit") {
+    return;
+  }
+
   const quickToggleButton = event.target.closest("[data-quick-toggle-edit-category]");
 
   if (!quickToggleButton) return;
 
   await handleEditCategoryToggle(quickToggleButton.dataset.quickToggleEditCategory);
+});
+
+editCategorySelector?.addEventListener("change", () => {
+  if (currentActionMode !== "edit") {
+    return;
+  }
+
+  applySelectedEditCategory(editCategorySelector.value);
+  setMessage(
+    editBoardMessage,
+    selectedEditCategoryId
+      ? "Catégorie sélectionnée. Choisissez maintenant le favori à modifier."
+      : "Choisissez une catégorie pour commencer."
+  );
+});
+
+editFavoriteSelector?.addEventListener("change", () => {
+  if (currentActionMode !== "edit") {
+    return;
+  }
+
+  applySelectedEditFavorite(editFavoriteSelector.value);
 });
 
 editCategoryQuickList?.addEventListener("dragover", (event) => {
@@ -2104,55 +2525,17 @@ editCategoryQuickList?.addEventListener("drop", async (event) => {
 
 deleteFavBoard.addEventListener("click", async (event) => {
   // Gestion des clics dans le panneau suppression.
+  const unlockButton = event.target.closest("[data-unlock-delete-category]");
+
+  if (unlockButton) {
+    await unlockDeleteCategory(unlockButton.dataset.unlockDeleteCategory);
+    return;
+  }
+
   const categoryToggle = event.target.closest("[data-toggle-delete-category]");
 
   if (categoryToggle) {
-    const categoryId = String(categoryToggle.dataset.toggleDeleteCategory || "");
-    const category = getCategoryById(categoryId);
-
-    if (!category) return;
-
-    const isExpanded = expandedDeleteCategoryIds.has(categoryId);
-    const isPrivate = isCategoryPrivate(category);
-    const isUnlocked = !isPrivate || isCategoryUnlocked(categoryId);
-
-    if (!isUnlocked) {
-      if (!isExpanded) {
-        expandedDeleteCategoryIds.add(categoryId);
-        renderDeleteBoard();
-        setMessage(
-          deleteBoardMessage,
-          `Catégorie "${category.category_name}" protégée. Cliquez de nouveau pour saisir le mot de passe.`
-        );
-        return;
-      }
-
-      try {
-        const hasAccess = await ensureCategorySelectionAccess(categoryId);
-
-        if (!hasAccess) {
-          return;
-        }
-
-        renderDeleteBoard();
-        setMessage(
-          deleteBoardMessage,
-          `Catégorie "${category.category_name}" déverrouillée.`,
-          "success"
-        );
-      } catch (error) {
-        setMessage(deleteBoardMessage, getUnlockErrorMessage(error), "error");
-      }
-      return;
-    }
-
-    if (isExpanded) {
-      expandedDeleteCategoryIds.delete(categoryId);
-    } else {
-      expandedDeleteCategoryIds.add(categoryId);
-    }
-
-    renderDeleteBoard();
+    await handleDeleteCategoryToggle(categoryToggle.dataset.toggleDeleteCategory);
     return;
   }
 
