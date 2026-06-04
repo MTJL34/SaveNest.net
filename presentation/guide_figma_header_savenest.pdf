@@ -1,0 +1,328 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 2754 >>
+stream
+BT /F2 20 Tf 22 TL 38 788 Td
+(Guide Figma - Header SaveNest) Tj
+ET
+BT /F1 10 Tf 12 TL 38 764 Td
+(Reconstruction simplifiee a partir du code du projet) Tj
+ET
+0.353 0.227 0.141 RG
+1 w
+0.353 0.227 0.141 rg
+54 608 m
+541 608 l
+557 608 557 608 557 624 c
+557 716 l
+557 732 557 732 541 732 c
+54 732 l
+38 732 38 732 38 716 c
+38 624 l
+38 608 38 608 54 608 c
+B
+0.969 0.929 0.886 RG
+0.80 w
+218 718 m 218 622 l S
+0.969 0.929 0.886 RG
+0.80 w
+290 718 m 290 622 l S
+0.945 0.878 0.812 RG
+1 w
+0.945 0.878 0.812 rg
+74 640 m
+104 640 l
+118 640 118 640 118 654 c
+118 684 l
+118 698 118 698 104 698 c
+74 698 l
+60 698 60 698 60 684 c
+60 654 l
+60 640 60 640 74 640 c
+B
+BT /F2 12 Tf 15 TL 73 663 Td
+(logo) Tj
+ET
+BT /F2 24 Tf 24 TL 130 665 Td
+(SaveNest) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+254 648 m
+254 648 l
+276 648 276 648 276 670 c
+276 670 l
+276 692 276 692 254 692 c
+254 692 l
+232 692 232 692 232 670 c
+232 670 l
+232 648 232 648 254 648 c
+S
+BT /F2 11 Tf 15 TL 240 665 Td
+(oeuf) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+0.380 0.255 0.173 rg
+327 653 m
+331 653 l
+348 653 348 653 348 670 c
+348 670 l
+348 687 348 687 331 687 c
+327 687 l
+310 687 310 687 310 670 c
+310 670 l
+310 653 310 653 327 653 c
+B
+0.945 0.878 0.812 rg
+BT /F1 10 Tf 15 TL 320 665 Td
+(FR) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+0.969 0.929 0.886 rg
+377 653 m
+405 653 l
+422 653 422 653 422 670 c
+422 670 l
+422 687 422 687 405 687 c
+377 687 l
+360 687 360 687 360 670 c
+360 670 l
+360 653 360 653 377 653 c
+B
+0.231 0.122 0.063 rg
+BT /F2 10 Tf 15 TL 370 665 Td
+(Accueil) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+0.380 0.255 0.173 rg
+451 653 m
+477 653 l
+494 653 494 653 494 670 c
+494 670 l
+494 687 494 687 477 687 c
+451 687 l
+434 687 434 687 434 670 c
+434 670 l
+434 653 434 653 451 653 c
+B
+0.945 0.878 0.812 rg
+BT /F1 10 Tf 15 TL 444 665 Td
+(Favoris) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+0.380 0.255 0.173 rg
+523 653 m
+563 653 l
+580 653 580 653 580 670 c
+580 670 l
+580 687 580 687 563 687 c
+523 687 l
+506 687 506 687 506 670 c
+506 670 l
+506 653 506 653 523 653 c
+B
+0.945 0.878 0.812 rg
+BT /F1 10 Tf 15 TL 516 665 Td
+(Categories) Tj
+ET
+BT /F1 11 Tf 15 TL 38 550 Td
+(Structure Figma conseillee : 1 frame Header en Auto Layout horizontal, avec 3 zones Left / Center / Right pour retrouver la grille CSS 1fr auto 1fr.) Tj
+ET
+BT /F2 14 Tf 15 TL 38 502 Td
+(Plan de construction) Tj
+ET
+BT /F1 11 Tf 16 TL 38 480 Td
+(1. Cree une frame desktop de 1440 px de large.) Tj
+T*
+(2. Ajoute une frame Header de 124 px de haut.) Tj
+T*
+(3. Donne au header un fond #5A3A24 et un rayon de 16 px si tu veux une maquette douce.) Tj
+T*
+(4. Active Auto Layout horizontal avec alignement vertical centre.) Tj
+T*
+(5. Cree trois sous-frames : Left en Fill, Center en Hug, Right en Fill.) Tj
+T*
+(6. Place le logo SaveNest a gauche, le bouton oeuf au centre, la navigation a droite.) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 2633 >>
+stream
+BT /F2 20 Tf 22 TL 38 788 Td
+(Reglages Figma detail) Tj
+ET
+BT /F1 10 Tf 12 TL 38 764 Td
+(Correspondance directe avec ton HTML/CSS) Tj
+ET
+BT /F2 14 Tf 15 TL 38 716 Td
+(Bloc logo) Tj
+ET
+BT /F1 11 Tf 16 TL 38 696 Td
+(- Frame Brand en Auto Layout horizontal) Tj
+T*
+(- Gap : 11 px) Tj
+T*
+(- Alignement : Center) Tj
+T*
+(- Image : 58 x 58 px) Tj
+T*
+(- Texte SaveNest : 25 px, 700, line-height 100 %, letter spacing -2 %) Tj
+T*
+(- Texte : couleur #F1E0CF) Tj
+ET
+BT /F2 14 Tf 15 TL 38 564 Td
+(Navigation) Tj
+ET
+BT /F1 11 Tf 16 TL 38 544 Td
+(- Liens alignes horizontalement avec 24 px d'espace visuel environ) Tj
+T*
+(- Couleur des liens : #F1E0CF) Tj
+T*
+(- Poids texte standard : 500) Tj
+T*
+(- Element actif : pill arrondie, fond translucide clair, texte plus fort) Tj
+T*
+(- Select langue : pill 34 px de haut, rayon 999 px, bordure claire, fond brun transparent) Tj
+ET
+BT /F2 14 Tf 15 TL 38 432 Td
+(Palette a creer dans Figma) Tj
+ET
+0.353 0.227 0.141 RG
+1 w
+0.353 0.227 0.141 rg
+46 382 m
+58 382 l
+66 382 66 382 66 390 c
+66 402 l
+66 410 66 410 58 410 c
+46 410 l
+38 410 38 410 38 402 c
+38 390 l
+38 382 38 382 46 382 c
+B
+BT /F1 11 Tf 15 TL 80 392 Td
+(Brand Dark  #5A3A24) Tj
+ET
+0.945 0.878 0.812 RG
+1 w
+0.945 0.878 0.812 rg
+46 340 m
+58 340 l
+66 340 66 340 66 348 c
+66 360 l
+66 368 66 368 58 368 c
+46 368 l
+38 368 38 368 38 360 c
+38 348 l
+38 340 38 340 46 340 c
+B
+BT /F1 11 Tf 15 TL 80 350 Td
+(Surface  #F1E0CF) Tj
+ET
+0.969 0.929 0.886 RG
+1 w
+0.969 0.929 0.886 rg
+46 298 m
+58 298 l
+66 298 66 298 66 306 c
+66 318 l
+66 326 66 326 58 326 c
+46 326 l
+38 326 38 326 38 318 c
+38 306 l
+38 298 38 298 46 298 c
+B
+BT /F1 11 Tf 15 TL 80 308 Td
+(Surface Soft  #F7EDE2) Tj
+ET
+0.231 0.122 0.063 RG
+1 w
+0.231 0.122 0.063 rg
+46 256 m
+58 256 l
+66 256 66 256 66 264 c
+66 276 l
+66 284 66 284 58 284 c
+46 284 l
+38 284 38 284 38 276 c
+38 264 l
+38 256 38 256 46 256 c
+B
+BT /F1 11 Tf 15 TL 80 266 Td
+(Text Dark  #3B1F10) Tj
+ET
+0.804 0.655 0.478 RG
+1 w
+0.804 0.655 0.478 rg
+46 214 m
+58 214 l
+66 214 66 214 66 222 c
+66 234 l
+66 242 66 242 58 242 c
+46 242 l
+38 242 38 242 38 234 c
+38 222 l
+38 214 38 214 46 214 c
+B
+BT /F1 11 Tf 15 TL 80 224 Td
+(Accent  #CDA77A) Tj
+ET
+BT /F2 14 Tf 15 TL 38 187 Td
+(Recette rapide) Tj
+ET
+BT /F1 11 Tf 16 TL 38 167 Td
+(1. Dessine d'abord le fond du header.) Tj
+T*
+(2. Reproduis ensuite le bloc logo a gauche.) Tj
+T*
+(3. Ajoute les pills de navigation a droite.) Tj
+T*
+(4. Termine par le bouton oeuf au centre.) Tj
+T*
+(5. Cree un composant Header Desktop pour le reutiliser partout.) Tj
+ET
+BT /F1 9 Tf 12 TL 38 58 Td
+(Sources du projet : FrontEnd/scripts/layout.js lignes 418 a 463, FrontEnd/css/layout.css lignes 54 a 107 et 173 a 258.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 7 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 7 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 4 0 R >>
+endobj
+7 0 obj
+<< /Type /Pages /Kids [5 0 R 6 0 R] /Count 2 >>
+endobj
+8 0 obj
+<< /Type /Catalog /Pages 7 0 R >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000000160 00000 n 
+0000002966 00000 n 
+0000005651 00000 n 
+0000005787 00000 n 
+0000005923 00000 n 
+0000005986 00000 n 
+trailer
+<< /Size 9 /Root 8 0 R >>
+startxref
+6035
+%%EOF

@@ -1,0 +1,477 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 4184 >>
+stream
+BT /F2 20 Tf
+28 565 Td (Schema MCD - SaveNest) Tj
+ET
+BT /F1 10 Tf
+28 549 Td (Version avec categorie par defaut) Tj
+ET
+0 0 0 RG 1 w
+30 382 150 118 re S
+30 476 150 24 re S
+BT /F2 15 Tf
+38 483 Td (favori) Tj
+ET
+BT /F1 11 Tf
+38 458 Td (id_favs) Tj
+ET
+BT /F1 11 Tf
+38 444 Td (title_favs) Tj
+ET
+BT /F1 11 Tf
+38 430 Td (url_favs) Tj
+ET
+BT /F1 11 Tf
+38 416 Td (added_date) Tj
+ET
+BT /F1 11 Tf
+38 402 Td (logo) Tj
+ET
+0 0 0 RG 1 w
+55 155 168 105 re S
+55 236 168 24 re S
+BT /F2 15 Tf
+63 243 Td (categorie) Tj
+ET
+BT /F1 11 Tf
+63 218 Td (id_category) Tj
+ET
+BT /F1 11 Tf
+63 204 Td (category_name) Tj
+ET
+BT /F1 11 Tf
+63 190 Td (confidentiality) Tj
+ET
+BT /F1 11 Tf
+63 176 Td (password) Tj
+ET
+0 0 0 RG 1 w
+360 170 160 115 re S
+360 261 160 24 re S
+BT /F2 15 Tf
+368 268 Td (utilisateur) Tj
+ET
+BT /F1 11 Tf
+368 243 Td (id_user) Tj
+ET
+BT /F1 11 Tf
+368 229 Td (pseudo) Tj
+ET
+BT /F1 11 Tf
+368 215 Td (mail) Tj
+ET
+BT /F1 11 Tf
+368 201 Td (password) Tj
+ET
+0 0 0 RG 1 w
+325 451 128 76 re S
+325 503 128 24 re S
+BT /F2 15 Tf
+333 510 Td (role) Tj
+ET
+BT /F1 11 Tf
+333 485 Td (id_role) Tj
+ET
+BT /F1 11 Tf
+333 471 Td (role_code) Tj
+ET
+BT /F1 11 Tf
+333 457 Td (role_label) Tj
+ET
+0 0 0 RG 1 w
+560 454 156 76 re S
+560 506 156 24 re S
+BT /F2 15 Tf
+568 513 Td (langue) Tj
+ET
+BT /F1 11 Tf
+568 488 Td (id_language) Tj
+ET
+BT /F1 11 Tf
+568 474 Td (language_name) Tj
+ET
+BT /F1 11 Tf
+568 460 Td (language_icon) Tj
+ET
+0 0 0 RG 1 w
+690 280 125 60 re S
+690 316 125 24 re S
+BT /F2 15 Tf
+698 323 Td (savenest) Tj
+ET
+BT /F1 11 Tf
+698 298 Td (id_savenest) Tj
+ET
+BT /F1 11 Tf
+698 284 Td (date_inscription) Tj
+ET
+0 0 0 RG 1 w
+62 314 m
+154 314 l
+167 314 167 314 167 327 c
+167 327 l
+167 340 167 340 154 340 c
+62 340 l
+49 340 49 340 49 327 c
+49 327 l
+49 314 49 314 62 314 c
+S
+BT /F2 12 Tf
+61 323 Td (contenir) Tj
+ET
+0 0 0 RG 1 w
+232 314 m
+324 314 l
+337 314 337 314 337 327 c
+337 327 l
+337 340 337 340 324 340 c
+232 340 l
+219 340 219 340 219 327 c
+219 327 l
+219 314 219 314 232 314 c
+S
+BT /F2 12 Tf
+231 323 Td (posseder) Tj
+ET
+0 0 0 RG 1 w
+214 191 m
+306 191 l
+319 191 319 191 319 204 c
+319 204 l
+319 217 319 217 306 217 c
+214 217 l
+201 217 201 217 201 204 c
+201 204 l
+201 191 201 191 214 191 c
+S
+BT /F2 12 Tf
+213 200 Td (partager) Tj
+ET
+0 0 0 RG 1 w
+379 364 m
+471 364 l
+484 364 484 364 484 377 c
+484 377 l
+484 390 484 390 471 390 c
+379 390 l
+366 390 366 390 366 377 c
+366 377 l
+366 364 366 364 379 364 c
+S
+BT /F2 12 Tf
+378 373 Td (avoir_role) Tj
+ET
+0 0 0 RG 1 w
+519 364 m
+611 364 l
+624 364 624 364 624 377 c
+624 377 l
+624 390 624 390 611 390 c
+519 390 l
+506 390 506 390 506 377 c
+506 377 l
+506 364 506 364 519 364 c
+S
+BT /F2 12 Tf
+518 373 Td (parler) Tj
+ET
+0 0 0 RG 1 w
+610 231 m
+724 231 l
+737 231 737 231 737 244 c
+737 244 l
+737 257 737 257 724 257 c
+610 257 l
+597 257 597 257 597 244 c
+597 244 l
+597 231 597 231 610 231 c
+S
+BT /F2 12 Tf
+609 240 Td (avoir_savenest) Tj
+ET
+0 0 0 RG 1 w
+338 99 m
+502 99 l
+515 99 515 99 515 112 c
+515 112 l
+515 125 515 125 502 125 c
+338 125 l
+325 125 325 125 325 112 c
+325 112 l
+325 99 325 99 338 99 c
+S
+BT /F2 12 Tf
+337 108 Td (avoir_categorie_defaut) Tj
+ET
+0 0 0 RG 1 w
+108 381 m 108 353 l S
+BT /F1 10 Tf
+85 368 Td (1,1) Tj
+ET
+0 0 0 RG 1 w
+108 314 m 136 260 l S
+BT /F1 10 Tf
+74 288 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+223 235 m 219 235 l S
+BT /F1 10 Tf
+230 242 Td (1,1) Tj
+ET
+0 0 0 RG 1 w
+337 328 m 360 270 l S
+BT /F1 10 Tf
+313 303 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+223 207 m 201 207 l S
+BT /F1 10 Tf
+227 213 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+319 207 m 360 217 l S
+BT /F1 10 Tf
+324 213 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+425 451 m 425 403 l S
+BT /F1 10 Tf
+404 428 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+425 364 m 425 285 l S
+BT /F1 10 Tf
+438 323 Td (1,1) Tj
+ET
+0 0 0 RG 1 w
+638 454 m 578 403 l S
+BT /F1 10 Tf
+598 432 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+565 364 m 565 285 l S
+BT /F1 10 Tf
+577 322 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+690 280 m 520 245 l S
+BT /F1 10 Tf
+628 275 Td (0,n) Tj
+ET
+0 0 0 RG 1 w
+520 245 m 520 245 l S
+BT /F1 10 Tf
+502 257 Td (1,1) Tj
+ET
+0 0 0 RG 1 w
+420 157 m 420 169 l S
+0 0 0 RG 1 w
+325 125 m 223 191 l S
+BT /F1 10 Tf
+265 141 Td (0,1) Tj
+ET
+0 0 0 RG 1 w
+515 125 m 520 169 l S
+BT /F1 10 Tf
+520 143 Td (1,1) Tj
+ET
+BT /F1 9 Tf
+28 28 Td (Regle metier : la categorie par defaut doit etre une categorie deja possedee par l'utilisateur.) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 2649 >>
+stream
+BT /F2 20 Tf
+28 565 Td (Schema MLD - SaveNest) Tj
+ET
+BT /F1 10 Tf
+28 549 Td (Projection relationnelle avec cle de categorie par defaut) Tj
+ET
+0 0 0 RG 1 w
+34 385 185 128 re S
+34 489 185 24 re S
+BT /F2 15 Tf
+42 496 Td (ROLE) Tj
+ET
+BT /F1 11 Tf
+42 471 Td (PK id_role) Tj
+ET
+BT /F1 11 Tf
+42 457 Td (role_code) Tj
+ET
+BT /F1 11 Tf
+42 443 Td (role_label) Tj
+ET
+0 0 0 RG 1 w
+250 385 210 128 re S
+250 489 210 24 re S
+BT /F2 15 Tf
+258 496 Td (LANGUE) Tj
+ET
+BT /F1 11 Tf
+258 471 Td (PK id_language) Tj
+ET
+BT /F1 11 Tf
+258 457 Td (language_name) Tj
+ET
+BT /F1 11 Tf
+258 443 Td (language_icon) Tj
+ET
+0 0 0 RG 1 w
+590 401 190 112 re S
+590 489 190 24 re S
+BT /F2 15 Tf
+598 496 Td (SAVENEST) Tj
+ET
+BT /F1 11 Tf
+598 471 Td (PK id_savenest) Tj
+ET
+BT /F1 11 Tf
+598 457 Td (date_inscription) Tj
+ET
+0 0 0 RG 1 w
+28 165 245 170 re S
+28 311 245 24 re S
+BT /F2 15 Tf
+36 318 Td (CATEGORIE) Tj
+ET
+BT /F1 11 Tf
+36 293 Td (PK id_category) Tj
+ET
+BT /F1 11 Tf
+36 279 Td (category_name) Tj
+ET
+BT /F1 11 Tf
+36 265 Td (confidentiality) Tj
+ET
+BT /F1 11 Tf
+36 251 Td (password) Tj
+ET
+BT /F1 11 Tf
+36 237 Td (FK id_user -> UTILISATEUR.id_user) Tj
+ET
+0 0 0 RG 1 w
+300 151 245 214 re S
+300 341 245 24 re S
+BT /F2 15 Tf
+308 348 Td (UTILISATEUR) Tj
+ET
+BT /F1 11 Tf
+308 323 Td (PK id_user) Tj
+ET
+BT /F1 11 Tf
+308 309 Td (pseudo) Tj
+ET
+BT /F1 11 Tf
+308 295 Td (mail) Tj
+ET
+BT /F1 11 Tf
+308 281 Td (password) Tj
+ET
+BT /F1 11 Tf
+308 267 Td (FK id_role -> ROLE.id_role) Tj
+ET
+BT /F1 11 Tf
+308 253 Td (FK id_savenest -> SAVENEST.id_savenest) Tj
+ET
+BT /F1 11 Tf
+308 239 Td (FK id_default_category -> CATEGORIE.id_category) Tj
+ET
+0 0 0 RG 1 w
+578 205 225 140 re S
+578 321 225 24 re S
+BT /F2 15 Tf
+586 328 Td (FAVORI) Tj
+ET
+BT /F1 11 Tf
+586 303 Td (PK id_favs) Tj
+ET
+BT /F1 11 Tf
+586 289 Td (title_favs) Tj
+ET
+BT /F1 11 Tf
+586 275 Td (url_favs) Tj
+ET
+BT /F1 11 Tf
+586 261 Td (added_date) Tj
+ET
+BT /F1 11 Tf
+586 247 Td (logo) Tj
+ET
+BT /F1 11 Tf
+586 233 Td (FK id_category -> CATEGORIE.id_category) Tj
+ET
+0 0 0 RG 1 w
+60 35 260 95 re S
+60 106 260 24 re S
+BT /F2 15 Tf
+68 113 Td (PARTAGER) Tj
+ET
+BT /F1 11 Tf
+68 88 Td (PK/FK id_user -> UTILISATEUR.id_user) Tj
+ET
+BT /F1 11 Tf
+68 74 Td (PK/FK id_category -> CATEGORIE.id_category) Tj
+ET
+BT /F1 11 Tf
+68 60 Td (access_level) Tj
+ET
+BT /F1 11 Tf
+68 46 Td (shared_at) Tj
+ET
+0 0 0 RG 1 w
+430 45 230 80 re S
+430 101 230 24 re S
+BT /F2 15 Tf
+438 108 Td (PARLER) Tj
+ET
+BT /F1 11 Tf
+438 83 Td (PK/FK id_user -> UTILISATEUR.id_user) Tj
+ET
+BT /F1 11 Tf
+438 69 Td (PK/FK id_language -> LANGUE.id_language) Tj
+ET
+BT /F1 10 Tf
+28 42 Td (Conseil SQL : ajouter une verification applicative pour s'assurer que id_default_category appartient bien a l'utilisateur.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 7 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 7 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 4 0 R >>
+endobj
+7 0 obj
+<< /Type /Pages /Kids [5 0 R 6 0 R] /Count 2 >>
+endobj
+8 0 obj
+<< /Type /Catalog /Pages 7 0 R >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000000160 00000 n 
+0000004396 00000 n 
+0000007097 00000 n 
+0000007233 00000 n 
+0000007369 00000 n 
+0000007432 00000 n 
+trailer
+<< /Size 9 /Root 8 0 R >>
+startxref
+7481
+%%EOF
