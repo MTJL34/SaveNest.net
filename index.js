@@ -36,6 +36,50 @@ app.use(cors());
 // express.json() permet de lire req.body quand le front envoie du JSON.
 app.use(express.json());
 
+// Les routes API de ce projet attendent des corps JSON pour les ecritures.
+// Si un client envoie du texte brut ou un JSON mal forme, on renvoie une erreur
+// explicite au lieu de laisser un controleur tomber sur un req.body indefini.
+app.use("/api", function ensureParsedJsonBody(req, res, next) {
+  const expectsRequestBody = ["POST", "PATCH", "PUT"].includes(req.method);
+
+  if (!expectsRequestBody) {
+    return next();
+  }
+
+  if (req.body !== undefined) {
+    return next();
+  }
+
+  const contentLengthHeader = req.headers["content-length"];
+  const parsedContentLength = Number(contentLengthHeader);
+  const hasRequestBody =
+    req.headers["transfer-encoding"] !== undefined ||
+    (Number.isFinite(parsedContentLength) && parsedContentLength > 0);
+
+  if (hasRequestBody) {
+    return res.status(400).json({
+      message: "Le corps de la requête doit être envoyé en JSON.",
+    });
+  }
+
+  req.body = {};
+  return next();
+});
+
+app.use(function handleMalformedJson(error, req, res, next) {
+  if (
+    req.path.startsWith("/api") &&
+    error &&
+    error.type === "entity.parse.failed"
+  ) {
+    return res.status(400).json({
+      message: "Le corps JSON est invalide.",
+    });
+  }
+
+  return next(error);
+});
+
 // Tous les fichiers du dossier FrontEnd sont servis tels quels au navigateur.
 // Exemple : /html/fav.html renvoie FrontEnd/html/fav.html.
 app.use(express.static(frontEndRoot));
